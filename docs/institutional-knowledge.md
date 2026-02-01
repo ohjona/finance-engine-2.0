@@ -8,8 +8,7 @@ supersedes:
 date: 2026-01-26
 purpose: Authoritative reference for TypeScript rewrite - captures all strategic decisions from finance-engine v1.x
 depends_on:
-  - PRD
-  - v2_architecture_roadmap
+  - PRD_v2
 ---
 
 # Finance Engine: Institutional Knowledge Compendium

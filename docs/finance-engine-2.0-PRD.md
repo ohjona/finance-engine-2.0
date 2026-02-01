@@ -2,8 +2,6 @@
 id: PRD_v2
 type: strategy
 status: draft
-depends_on:
-  - institutional_knowledge_compendium
 ---
 
 # Personal Finance Engine - Product Requirements Document
