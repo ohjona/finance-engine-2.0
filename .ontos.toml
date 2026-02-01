@@ -1,0 +1,27 @@
+[ontos]
+version = "3.0"
+required_version = ""
+
+[paths]
+docs_dir = "docs"
+logs_dir = "docs/logs"
+context_map = "Ontos_Context_Map.md"
+
+[scanning]
+skip_patterns = ["_template.md", "archive/*"]
+
+[validation]
+max_dependency_depth = 5
+allowed_orphan_types = ["atom"]
+strict = false
+
+[workflow]
+enforce_archive_before_push = true
+require_source_in_logs = true
+log_retention_count = 20
+
+[hooks]
+pre_push = true
+pre_commit = true
+strict = false
+
