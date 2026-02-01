@@ -31,3 +31,9 @@ npm-debug.log*
 
 # Test fixtures (real bank data)
 fixtures/real/
+
+# Ontos transient files
+*.bak
+*.tmp
+.claude/
+.gemini/
