@@ -8,6 +8,11 @@
 
 import type { ParseResult } from '../types/index.js';
 import { parseAmex } from './amex.js';
+import { parseChaseChecking } from './chase-checking.js';
+import { parseBoaChecking } from './boa-checking.js';
+import { parseBoaCredit } from './boa-credit.js';
+import { parseFidelity } from './fidelity.js';
+import { parseDiscover } from './discover.js';
 
 /**
  * Parser function signature.
@@ -34,8 +39,26 @@ const PARSERS: Record<string, ParserEntry> = {
         pattern: /^amex_\d{4}_\d{6}\.xlsx$/i,
         parser: parseAmex,
     },
-    // Remaining parsers will be added in Phase 2:
-    // chase_checking, boa_checking, boa_credit, fidelity, discover
+    chase_checking: {
+        pattern: /^chase_checking_\d{4}_\d{6}\.csv$/i,
+        parser: parseChaseChecking,
+    },
+    boa_checking: {
+        pattern: /^boa_checking_\d{4}_\d{6}\.csv$/i,
+        parser: parseBoaChecking,
+    },
+    boa_credit: {
+        pattern: /^boa_credit_\d{4}_\d{6}\.csv$/i,
+        parser: parseBoaCredit,
+    },
+    fidelity: {
+        pattern: /^fidelity_\d{4}_\d{6}\.csv$/i,
+        parser: parseFidelity,
+    },
+    discover: {
+        pattern: /^discover_\d{4}_\d{6}\.xls$/i,
+        parser: parseDiscover,
+    },
 };
 
 /**
