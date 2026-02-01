@@ -16,9 +16,12 @@
 import * as XLSX from 'xlsx';
 import Decimal from 'decimal.js';
 import type { Transaction, ParseResult } from '../types/index.js';
-import { UNCATEGORIZED_CATEGORY_ID } from '../types/index.js';
+import { UNCATEGORIZED_CATEGORY_ID, TransactionSchema } from '../types/index.js';
 import { generateTxnId } from '../utils/txn-id.js';
 import { normalizeDescription } from '../utils/normalize.js';
+
+const AMEX_HEADER_OFFSET = 6;
+const AMEX_EXPECTED_COLUMNS = ['Date', 'Description', 'Amount'];
 
 /**
  * Parse Amex transaction export.
@@ -32,8 +35,8 @@ export function parseAmex(data: ArrayBuffer, accountId: number, sourceFile: stri
     const workbook = XLSX.read(data, { type: 'array' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-    // Convert to JSON, skipping first 6 rows
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { range: 6 });
+    // Convert to JSON, skipping header rows
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { range: AMEX_HEADER_OFFSET });
 
     const warnings: string[] = [];
     const transactions: Transaction[] = [];
@@ -45,8 +48,7 @@ export function parseAmex(data: ArrayBuffer, accountId: number, sourceFile: stri
 
     // Header validation - check first row has expected columns
     const firstRow = rows[0];
-    const requiredColumns = ['Date', 'Description', 'Amount'];
-    const missingColumns = requiredColumns.filter((col) => !(col in firstRow));
+    const missingColumns = AMEX_EXPECTED_COLUMNS.filter((col) => !(col in firstRow));
 
     if (missingColumns.length > 0) {
         throw new Error(
@@ -70,7 +72,7 @@ export function parseAmex(data: ArrayBuffer, accountId: number, sourceFile: stri
         }
 
         const rawDesc = String(row['Description'] ?? '');
-        const rawAmountStr = String(row['Amount'] ?? '0');
+        const rawAmountStr = String(row['Amount'] ?? '0').trim();
 
         // Handle amount - strip commas if present
         const cleanAmount = rawAmountStr.replace(/,/g, '');
@@ -106,7 +108,14 @@ export function parseAmex(data: ArrayBuffer, accountId: number, sourceFile: stri
             review_reasons: [],
         };
 
-        transactions.push(txn);
+        // Validate against schema (runtime check)
+        try {
+            TransactionSchema.parse(txn);
+            transactions.push(txn);
+        } catch (e) {
+            warnings.push(`Schema validation failed for row: ${e}`);
+            skippedRows++;
+        }
     }
 
     // Add warning if rows were skipped
@@ -119,8 +128,12 @@ export function parseAmex(data: ArrayBuffer, accountId: number, sourceFile: stri
 
 /**
  * Parse Amex date value (Excel serial or string).
+ * Returns date in UTC (00:00:00Z).
  */
 function parseAmexDate(value: unknown): Date | null {
+    if (value instanceof Date) {
+        return isValidDate(value) ? value : null;
+    }
     if (typeof value === 'number') {
         // Excel serial date
         return excelSerialToDate(value);
@@ -131,7 +144,8 @@ function parseAmexDate(value: unknown): Date | null {
         const mdyMatch = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
         if (mdyMatch) {
             const [, month, day, year] = mdyMatch;
-            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            // Create UTC date
+            const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
             return isValidDate(date) ? date : null;
         }
 
@@ -139,7 +153,8 @@ function parseAmexDate(value: unknown): Date | null {
         const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
         if (isoMatch) {
             const [, year, month, day] = isoMatch;
-            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            // Create UTC date
+            const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
             return isValidDate(date) ? date : null;
         }
     }
@@ -148,7 +163,7 @@ function parseAmexDate(value: unknown): Date | null {
 }
 
 /**
- * Convert Excel serial date to JavaScript Date.
+ * Convert Excel serial date to JavaScript Date (UTC).
  */
 function excelSerialToDate(serial: number): Date {
     // Excel serial: days since 1899-12-30 (accounting for 1900 leap year bug)
@@ -165,11 +180,11 @@ function isValidDate(date: Date): boolean {
 }
 
 /**
- * Format date as ISO YYYY-MM-DD string.
+ * Format date as ISO YYYY-MM-DD string using UTC components.
  */
 function formatIsoDate(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 }
