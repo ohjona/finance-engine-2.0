@@ -138,4 +138,42 @@ describe('parseAmex', () => {
 
         expect(() => parseAmex(data, 2122, 'amex_2122_202601.xlsx')).toThrow('Missing required columns');
     });
+
+    it('handles Date-typed cells (XLSX cellDates)', () => {
+        const date = new Date(Date.UTC(2026, 0, 15)); // 2026-01-15 UTC
+        const data = createAmexWorkbook([
+            { Date: date, Description: 'DATE OBJ', Amount: '10.00', Category: '' },
+        ]);
+
+        const result = parseAmex(data, 2122, 'amex_2122_202601.xlsx');
+
+        expect(result.transactions).toHaveLength(1);
+        expect(result.transactions[0].effective_date).toBe('2026-01-15');
+    });
+
+    it('parses amounts with leading/trailing whitespace', () => {
+        const data = createAmexWorkbook([
+            { Date: '01/15/2026', Description: 'WHITESPACE', Amount: ' 1,234.50 ', Category: '' },
+        ]);
+
+        const result = parseAmex(data, 2122, 'amex_2122_202601.xlsx');
+
+        expect(result.transactions).toHaveLength(1);
+        expect(result.transactions[0].signed_amount).toBe('-1234.5');
+    });
+
+    it('emits distinct warnings for different skip reasons', () => {
+        const data = createAmexWorkbook([
+            { Date: 'invalid', Description: 'INVALID DATE', Amount: '10.00', Category: '' },
+            { Date: '01/15/2026', Description: 'INVALID AMOUNT', Amount: 'abc', Category: '' },
+        ]);
+
+        const result = parseAmex(data, 2122, 'amex_2122_202601.xlsx');
+
+        expect(result.transactions).toHaveLength(0);
+        expect(result.skippedRows).toBe(2);
+        expect(result.warnings).toHaveLength(3); // 1 for amount, 2 summary warnings (date + amount)
+        expect(result.warnings).toContain('Skipped 1 rows with invalid or missing dates');
+        expect(result.warnings).toContain('Skipped 1 rows with invalid amounts');
+    });
 });

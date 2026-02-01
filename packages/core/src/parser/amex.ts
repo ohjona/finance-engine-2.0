@@ -32,7 +32,7 @@ const AMEX_EXPECTED_COLUMNS = ['Date', 'Description', 'Amount'];
  * @returns ParseResult with transactions, warnings, and skip count
  */
 export function parseAmex(data: ArrayBuffer, accountId: number, sourceFile: string): ParseResult {
-    const workbook = XLSX.read(data, { type: 'array' });
+    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
     // Convert to JSON, skipping header rows
@@ -40,10 +40,12 @@ export function parseAmex(data: ArrayBuffer, accountId: number, sourceFile: stri
 
     const warnings: string[] = [];
     const transactions: Transaction[] = [];
-    let skippedRows = 0;
+    let skippedDates = 0;
+    let skippedAmounts = 0;
+    let skippedSchema = 0;
 
     if (rows.length === 0) {
-        return { transactions, warnings, skippedRows };
+        return { transactions, warnings, skippedRows: 0 };
     }
 
     // Header validation - check first row has expected columns
@@ -60,14 +62,14 @@ export function parseAmex(data: ArrayBuffer, accountId: number, sourceFile: stri
     for (const row of rows) {
         const dateValue = row['Date'];
         if (!dateValue) {
-            skippedRows++;
+            skippedDates++;
             continue;
         }
 
         // Parse date
         const txnDate = parseAmexDate(dateValue);
         if (!txnDate) {
-            skippedRows++;
+            skippedDates++;
             continue;
         }
 
@@ -81,7 +83,7 @@ export function parseAmex(data: ArrayBuffer, accountId: number, sourceFile: stri
             rawAmount = new Decimal(cleanAmount);
         } catch {
             warnings.push(`Invalid amount "${rawAmountStr}" in row, skipping`);
-            skippedRows++;
+            skippedAmounts++;
             continue;
         }
 
@@ -114,14 +116,22 @@ export function parseAmex(data: ArrayBuffer, accountId: number, sourceFile: stri
             transactions.push(txn);
         } catch (e) {
             warnings.push(`Schema validation failed for row: ${e}`);
-            skippedRows++;
+            skippedSchema++;
         }
     }
 
-    // Add warning if rows were skipped
-    if (skippedRows > 0) {
-        warnings.push(`Skipped ${skippedRows} rows with invalid or missing dates`);
+    // Emit specific warnings based on reason
+    if (skippedDates) {
+        warnings.push(`Skipped ${skippedDates} rows with invalid or missing dates`);
     }
+    if (skippedAmounts) {
+        warnings.push(`Skipped ${skippedAmounts} rows with invalid amounts`);
+    }
+    if (skippedSchema) {
+        warnings.push(`Skipped ${skippedSchema} rows that failed schema validation`);
+    }
+
+    const skippedRows = skippedDates + skippedAmounts + skippedSchema;
 
     return { transactions, warnings, skippedRows };
 }
