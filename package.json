@@ -1,0 +1,25 @@
+{
+    "name": "finance-engine",
+    "version": "2.0.0",
+    "private": true,
+    "type": "module",
+    "packageManager": "pnpm@9.0.0",
+    "scripts": {
+        "build": "pnpm -r build",
+        "test": "pnpm -r test",
+        "lint": "eslint packages/*/src/**/*.ts",
+        "format": "prettier --write \"packages/*/src/**/*.ts\"",
+        "clean": "pnpm -r exec rm -rf dist",
+        "typecheck": "pnpm -r typecheck",
+        "verify:core-constraints": "node scripts/verify-core-constraints.mjs"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "eslint": "^8.55.0",
+        "@typescript-eslint/eslint-plugin": "^6.13.0",
+        "@typescript-eslint/parser": "^6.13.0",
+        "prettier": "^3.1.0",
+        "typescript": "^5.3.0",
+        "vitest": "^1.0.0"
+    }
+}

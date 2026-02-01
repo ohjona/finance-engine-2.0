@@ -1,1 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Coverage
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temp files
+~
+
+# Test fixtures (real bank data)
+fixtures/real/
