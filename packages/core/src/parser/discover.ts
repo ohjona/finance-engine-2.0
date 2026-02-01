@@ -29,32 +29,48 @@ const DISCOVER_EXPECTED_COLUMNS = ['Trans. Date', 'Post Date', 'Description', 'A
  */
 export function parseDiscover(data: ArrayBuffer, accountId: number, sourceFile: string): ParseResult {
     // xlsx auto-detects format including HTML tables saved as .xls
-    // Using cellDates: true for consistency, though HTML parsing might result in strings.
     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
 
+    let activeSheet: XLSX.WorkSheet | null = null;
+    let activeRows: Record<string, unknown>[] = [];
+    let activeSheetName: string = '';
+
+    // X-2: Robust multi-table handling. Scan all sheets for required headers.
+    for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+        if (rows.length === 0) continue;
+
+        const firstRow = rows[0];
+        const missingColumns = DISCOVER_EXPECTED_COLUMNS.filter((col) => !(col in firstRow));
+        if (missingColumns.length === 0) {
+            activeSheet = sheet;
+            activeRows = rows;
+            activeSheetName = sheetName;
+            break;
+        }
+    }
+
+    if (!activeSheet) {
+        // Fallback for debugging: list schemas of all sheets
+        const sheetSummaries = workbook.SheetNames.map(name => {
+            const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[name]);
+            const headers = rows.length > 0 ? Object.keys(rows[0]).join(', ') : 'EMPTY';
+            return `"${name}": [${headers}]`;
+        }).join('; ');
+
+        throw new Error(
+            `Discover parser: Could not find transaction table in any sheet. ` +
+            `Checked: ${sheetSummaries}`
+        );
+    }
+
+    const rows = activeRows;
     const warnings: string[] = [];
     const transactions: Transaction[] = [];
     let skippedDates = 0;
     let skippedAmounts = 0;
     let skippedSchema = 0;
-
-    if (rows.length === 0) {
-        return { transactions, warnings, skippedRows: 0 };
-    }
-
-    // Header validation
-    const firstRow = rows[0];
-    const requiredColumns = ['Trans. Date', 'Description', 'Amount'];
-    const missingColumns = requiredColumns.filter((col) => !(col in firstRow));
-
-    if (missingColumns.length > 0) {
-        throw new Error(
-            `Discover parser: Missing required columns: ${missingColumns.join(', ')}. ` +
-            `Found: ${Object.keys(firstRow).join(', ')}`
-        );
-    }
 
     for (const row of rows) {
         const dateValue = row['Trans. Date'];
@@ -92,12 +108,13 @@ export function parseDiscover(data: ArrayBuffer, accountId: number, sourceFile: 
         // ASSUMPTION: Discover follows credit card convention (negative = purchase)
         const signedAmount = rawAmount;
 
-        const effectiveDate = formatIsoDate(postDate);
+        // Per IK D2.6: Use txn_date for month assignment (effective_date)
+        const effectiveDate = formatIsoDate(txnDate);
 
         const txn: Transaction = {
             txn_id: generateTxnId(effectiveDate, rawDesc, signedAmount, accountId),
             txn_date: formatIsoDate(txnDate),
-            post_date: effectiveDate,
+            post_date: formatIsoDate(postDate),
             effective_date: effectiveDate,
             description: normalizeDescription(rawDesc),
             raw_description: rawDesc,

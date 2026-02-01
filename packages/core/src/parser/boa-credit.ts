@@ -17,6 +17,9 @@ import { UNCATEGORIZED_CATEGORY_ID, TransactionSchema } from '../types/index.js'
 import { generateTxnId } from '../utils/txn-id.js';
 import { normalizeDescription } from '../utils/normalize.js';
 import { parseDateValue, formatIsoDate } from '../utils/date-parse.js';
+import { stripBom } from '../utils/csv.js';
+
+const BOA_CREDIT_EXPECTED_COLUMNS = ['Posted Date', 'Payee', 'Amount'];
 
 /**
  * Parse Bank of America Credit Card transaction export.
@@ -24,7 +27,13 @@ import { parseDateValue, formatIsoDate } from '../utils/date-parse.js';
 export function parseBoaCredit(data: ArrayBuffer, accountId: number, sourceFile: string): ParseResult {
     const workbook = XLSX.read(data, { type: 'array' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet).map(row => {
+        const clean: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(row)) {
+            clean[stripBom(k)] = v;
+        }
+        return clean;
+    });
 
     const warnings: string[] = [];
     const transactions: Transaction[] = [];
@@ -36,7 +45,7 @@ export function parseBoaCredit(data: ArrayBuffer, accountId: number, sourceFile:
         return { transactions, warnings, skippedRows: 0 };
     }
 
-    // Header validation
+    // Header validation (rows are already cleaned)
     const firstRow = rows[0];
     const requiredColumns = ['Posted Date', 'Payee', 'Amount'];
     const missingColumns = requiredColumns.filter((col) => !(col in firstRow));

@@ -40,15 +40,18 @@ const PARSERS: Record<string, ParserEntry> = {
         parser: parseAmex,
     },
     chase_checking: {
-        pattern: /^chase_checking_\d{4}_\d{6}\.csv$/i,
+        // Supports chase_checking_1234_202601.csv and chase_1234_202601.csv
+        pattern: /^chase(_checking)?_\d{4}_\d{6}\.csv$/i,
         parser: parseChaseChecking,
     },
     boa_checking: {
-        pattern: /^boa_checking_\d{4}_\d{6}\.csv$/i,
+        // Supports boa_checking_1234_202601.csv and legacy boa_1xxx_202601.csv
+        pattern: /^(boa_checking_\d{4}_\d{6}\.csv|boa_1\d{3}_\d{6}\.csv)$/i,
         parser: parseBoaChecking,
     },
     boa_credit: {
-        pattern: /^boa_credit_\d{4}_\d{6}\.csv$/i,
+        // Supports boa_credit_1234_202601.csv and legacy boa_2xxx_202601.csv
+        pattern: /^(boa_credit_\d{4}_\d{6}\.csv|boa_2\d{3}_\d{6}\.csv)$/i,
         parser: parseBoaCredit,
     },
     fidelity: {
@@ -101,17 +104,19 @@ export function detectParser(filename: string): ParserDetectionResult | null {
 
 /**
  * Extract 4-digit account ID from filename.
- * Expected format: {institution}_{accountID}_{YYYYMM}.{ext}
+ * Supports both formats:
+ * - {institution}_{accountID}_{YYYYMM}.{ext} (e.g., amex_2122_202601.xlsx)
+ * - {institution}_{type}_{accountID}_{YYYYMM}.{ext} (e.g., chase_checking_1120_202601.csv)
  *
  * @param filename - Filename to parse
  * @returns 4-digit account ID or null if not found
  */
 export function extractAccountId(filename: string): number | null {
     const parts = filename.split('_');
-    if (parts.length >= 2) {
-        const idStr = parts[1];
-        if (/^\d{4}$/.test(idStr)) {
-            return parseInt(idStr, 10);
+    // Find the first 4-digit number in the filename parts
+    for (const part of parts) {
+        if (/^\d{4}$/.test(part)) {
+            return parseInt(part, 10);
         }
     }
     return null;

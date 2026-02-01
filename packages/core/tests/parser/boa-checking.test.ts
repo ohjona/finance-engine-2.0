@@ -62,4 +62,28 @@ describe('parseBoaChecking', () => {
         const result = parseBoaChecking(data, accountId, sourceFile);
         expect(result.transactions[0].signed_amount).toBe('7933.55');
     });
+
+    it('should warn and skip $0 amount rows', () => {
+        const data = createCsv([
+            ['Date', 'Description', 'Amount'],
+            ['01/15/2026', 'ZERO AMT', '0.00']
+        ]);
+
+        const result = parseBoaChecking(data, accountId, sourceFile);
+        expect(result.transactions).toHaveLength(0);
+        expect(result.skippedRows).toBe(1);
+        expect(result.warnings).toContain('Skipped transaction with $0 amount: ZERO AMT');
+    });
+
+    it('should not false-match summary rows with partial tokens', () => {
+        const data = createCsv([
+            ['Account Summary', 'Amount: $500', 'Description: Checking'], // Partial tokens, should not match exact equality
+            ['Date', 'Description', 'Amount', 'Running Balance'],      // Real header
+            ['01/15/2026', 'REAL TXN', '100.00', '1100.00']
+        ]);
+
+        const result = parseBoaChecking(data, accountId, sourceFile);
+        expect(result.transactions).toHaveLength(1);
+        expect(result.transactions[0].description).toBe('REAL TXN');
+    });
 });

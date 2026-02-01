@@ -20,6 +20,7 @@ import { UNCATEGORIZED_CATEGORY_ID, TransactionSchema } from '../types/index.js'
 import { generateTxnId } from '../utils/txn-id.js';
 import { normalizeDescription } from '../utils/normalize.js';
 import { parseDateValue, formatIsoDate } from '../utils/date-parse.js';
+import { stripBom } from '../utils/csv.js';
 
 const BOA_CHECKING_HEADER_PATTERNS = ['date', 'description', 'amount'];
 const BOA_CHECKING_MAX_HEADER_SCAN = 10;
@@ -30,8 +31,10 @@ const BOA_CHECKING_MAX_HEADER_SCAN = 10;
  */
 function findHeaderRow(rows: unknown[][], maxScan: number = BOA_CHECKING_MAX_HEADER_SCAN): number {
     for (let i = 0; i < Math.min(rows.length, maxScan); i++) {
-        const cols = rows[i].map((c) => String(c ?? '').toLowerCase());
-        if (BOA_CHECKING_HEADER_PATTERNS.every((h) => cols.some((c) => c.includes(h)))) {
+        // Normalize: trim, lowercase, strip BOM
+        const cols = rows[i].map((c) => stripBom(String(c ?? '').trim().toLowerCase()));
+        // X-3: Use exact matching for canonical headers to avoid false positives in summary rows
+        if (BOA_CHECKING_HEADER_PATTERNS.every((h) => cols.some((c) => c === h))) {
             return i;
         }
     }
@@ -60,8 +63,14 @@ export function parseBoaChecking(data: ArrayBuffer, accountId: number, sourceFil
     // Smart header detection
     const headerRowIndex = findHeaderRow(rawRows);
 
-    // Re-parse with correct range
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { range: headerRowIndex });
+    // Re-parse with correct range and normalize keys
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { range: headerRowIndex }).map(row => {
+        const clean: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(row)) {
+            clean[stripBom(k)] = v;
+        }
+        return clean;
+    });
 
     const warnings: string[] = [];
     const transactions: Transaction[] = [];
@@ -86,6 +95,7 @@ export function parseBoaChecking(data: ArrayBuffer, accountId: number, sourceFil
     }
 
     for (const row of rows) {
+
         const dateValue = row['Date'];
         if (!dateValue) {
             skippedDates++;
@@ -104,9 +114,14 @@ export function parseBoaChecking(data: ArrayBuffer, accountId: number, sourceFil
         // Per IK D3.10: Strip commas before Decimal conversion
         const cleanAmount = rawAmountStr.replace(/,/g, '');
 
-        // Skip "Beginning balance" rows or rows with empty Amount
-        if (cleanAmount === '' || cleanAmount === '0' || rawDesc.toLowerCase().includes('beginning balance')) {
-            // We don't count these as skipped rows in the same way as errors
+        // Skip "Beginning balance" rows
+        if (rawDesc.toLowerCase().includes('beginning balance')) {
+            continue;
+        }
+
+        // Empty amount check
+        if (cleanAmount === '') {
+            skippedAmounts++;
             continue;
         }
 
@@ -115,6 +130,13 @@ export function parseBoaChecking(data: ArrayBuffer, accountId: number, sourceFil
             rawAmount = new Decimal(cleanAmount);
         } catch {
             warnings.push(`Invalid amount "${rawAmountStr}" in row, skipping`);
+            skippedAmounts++;
+            continue;
+        }
+
+        // S-1: Warn on $0 rows
+        if (rawAmount.isZero()) {
+            warnings.push(`Skipped transaction with $0 amount: ${rawDesc}`);
             skippedAmounts++;
             continue;
         }

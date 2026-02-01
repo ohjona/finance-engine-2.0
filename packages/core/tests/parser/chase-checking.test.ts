@@ -76,4 +76,16 @@ describe('parseChaseChecking', () => {
         expect(result.skippedRows).toBe(1);
         expect(result.warnings).toContain('Skipped 1 rows with invalid amounts');
     });
+
+    it('should parse valid Chase CSV with BOM in header', () => {
+        // \uFEFF is the UTF-8 BOM
+        const data = createCsv([
+            { '\uFEFFPosting Date': '01/15/2026', 'Description': 'BOM TEST', 'Amount': '123.45' }
+        ]);
+
+        const result = parseChaseChecking(data, accountId, sourceFile);
+
+        expect(result.transactions).toHaveLength(1);
+        expect(result.transactions[0].description).toBe('BOM TEST');
+    });
 });
