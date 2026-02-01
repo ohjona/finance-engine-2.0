@@ -112,7 +112,7 @@ describe('parseAmex', () => {
     });
 
     it('handles Excel serial dates', () => {
-        // Excel serial for 2026-01-15 is approximately 46036
+        // Excel serial for 2026-01-14 is 46036
         const data = createAmexWorkbook([
             { Date: 46036, Description: 'EXCEL DATE', Amount: '10.00', Category: '' },
         ]);
@@ -121,7 +121,7 @@ describe('parseAmex', () => {
 
         expect(result.transactions).toHaveLength(1);
         // Date should be parsed (exact date depends on Excel serial calculation)
-        expect(result.transactions[0].effective_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(result.transactions[0].effective_date).toBe('2026-01-14');
     });
 
     it('throws error for missing required columns', () => {
