@@ -87,6 +87,41 @@ export const CategorizationResultSchema = z.object({
 export type CategorizationResult = z.infer<typeof CategorizationResultSchema>;
 
 /**
+ * Categorization output - wraps result with warnings.
+ * Per architectural constraint: no console.* in core.
+ */
+export const CategorizationOutputSchema = z.object({
+    result: CategorizationResultSchema,
+    warnings: z.array(z.string()),
+});
+
+export type CategorizationOutput = z.infer<typeof CategorizationOutputSchema>;
+
+/**
+ * Pattern validation result.
+ * Per IK D4.7, D4.8, D4.11.
+ */
+export const PatternValidationResultSchema = z.object({
+    valid: z.boolean(),
+    errors: z.array(z.string()),
+    warnings: z.array(z.string()),
+    matchCount: z.number().int().min(0).optional(),
+    matchPercent: z.number().min(0).max(1).optional(),
+});
+
+export type PatternValidationResult = z.infer<typeof PatternValidationResultSchema>;
+
+/**
+ * Pattern collision check result.
+ */
+export const CollisionResultSchema = z.object({
+    hasCollision: z.boolean(),
+    collidingPatterns: z.array(z.string()),
+});
+
+export type CollisionResult = z.infer<typeof CollisionResultSchema>;
+
+/**
  * Rule schema for categorization patterns.
  * Per IK D2.10.
  */
