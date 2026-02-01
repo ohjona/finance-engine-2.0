@@ -63,6 +63,12 @@ export function resolveCollisions(transactions: readonly Transaction[]): Transac
 
         if (seen[baseId]) {
             seen[baseId] += 1;
+
+            // B-2: Cap at 99 collisions to match schema regex (-\d{2})
+            if (seen[baseId] > 99) {
+                throw new Error(`Collision overflow: ${baseId} has reached max limit of 99 duplicates`);
+            }
+
             // Suffix format: -02, -03, etc.
             const suffix = String(seen[baseId]).padStart(2, '0');
             result.push({

@@ -145,6 +145,11 @@ describe('resolveCollisions', () => {
         expect(result[0].description).toBe('ORIGINAL');
         expect(result[0].signed_amount).toBe('-99.99');
     });
+
+    it('throws error for collision overflow (>99 duplicates)', () => {
+        const txns = Array(100).fill(makeTxn('aaaa111111111111'));
+        expect(() => resolveCollisions(txns)).toThrow(/Collision overflow/);
+    });
 });
 
 describe('buildCollisionMap', () => {
