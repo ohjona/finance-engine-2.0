@@ -94,6 +94,37 @@ describe('matchPayments', () => {
 
             expect(result.matches).toHaveLength(0);
         });
+
+        it('matches on RECV keyword (IK D6.5)', () => {
+            const bankTxn = makeTxn({
+                txn_id: 'bank1',
+                account_id: 1120, // checking
+                signed_amount: '-500.00',
+                description: 'ACH RECV AMEX',
+                raw_description: 'ACH RECV AMEX',
+                effective_date: '2024-01-15',
+            });
+            const ccTxn = makeTxn({
+                txn_id: 'cc1',
+                account_id: 2122, // CC
+                signed_amount: '500.00',
+                description: 'PAYMENT RECEIVED',
+                raw_description: 'PAYMENT RECEIVED',
+                effective_date: '2024-01-15',
+            });
+
+            const result = matchPayments([bankTxn, ccTxn], {
+                bankAccountIds: [1120],
+                ccAccountIds: [2122],
+                patterns: [
+                    { keywords: ['PAYMENT', 'AUTOPAY', 'RECV'], pattern: 'AMEX', accounts: [2122] },
+                ],
+            });
+
+            expect(result.matches).toHaveLength(1);
+            expect(result.matches[0].bank_txn_id).toBe('bank1');
+            expect(result.matches[0].cc_txn_id).toBe('cc1');
+        });
     });
 
     describe('IK D6.6 - No Candidate Visibility', () => {

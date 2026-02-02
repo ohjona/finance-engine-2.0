@@ -64,11 +64,11 @@ export const TXN_ID = {
  * actual account IDs from their chart of accounts.
  */
 export const DEFAULT_PAYMENT_PATTERNS = [
-    { keywords: ['PAYMENT', 'AUTOPAY'], pattern: 'AMEX', accounts: [] },
-    { keywords: ['PAYMENT'], pattern: 'CHASE CARD', accounts: [] },
-    { keywords: ['PAYMENT'], pattern: 'DISCOVER', accounts: [] },
-    { keywords: ['PAYMENT'], pattern: 'BOA', accounts: [] },
-    { keywords: ['PAYMENT', 'AUTOPAY'], pattern: 'CITI', accounts: [] },
+    { keywords: ['PAYMENT', 'AUTOPAY', 'RECV'], pattern: 'AMEX', accounts: [] },
+    { keywords: ['PAYMENT', 'RECV'], pattern: 'CHASE CARD', accounts: [] },
+    { keywords: ['PAYMENT', 'RECV'], pattern: 'DISCOVER', accounts: [] },
+    { keywords: ['PAYMENT', 'RECV'], pattern: 'BOA', accounts: [] },
+    { keywords: ['PAYMENT', 'AUTOPAY', 'RECV'], pattern: 'CITI', accounts: [] },
 ] as const;
 
 /**
