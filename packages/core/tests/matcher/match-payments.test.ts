@@ -51,7 +51,7 @@ describe('matchPayments', () => {
 
             expect(result.matches).toHaveLength(1);
             expect(result.matches[0].bank_txn_id).toBe('bank-1');
-            expect(result.matches[0].cc_txn_id).toBe('cc-1');
+            expect(result.matches[0].cc_txn_ids[0]).toBe('cc-1');
         });
 
         it('rejects match with pattern but no keyword', () => {
@@ -123,7 +123,7 @@ describe('matchPayments', () => {
 
             expect(result.matches).toHaveLength(1);
             expect(result.matches[0].bank_txn_id).toBe('bank1');
-            expect(result.matches[0].cc_txn_id).toBe('cc1');
+            expect(result.matches[0].cc_txn_ids[0]).toBe('cc1');
         });
     });
 
@@ -268,10 +268,10 @@ describe('matchPayments', () => {
             expect(result.matches).toHaveLength(2);
 
             const amexMatch = result.matches.find(m => m.bank_txn_id === 'bank-amex');
-            expect(amexMatch?.cc_txn_id).toBe('cc-amex');
+            expect(amexMatch?.cc_txn_ids[0]).toBe('cc-amex');
 
             const chaseMatch = result.matches.find(m => m.bank_txn_id === 'bank-chase');
-            expect(chaseMatch?.cc_txn_id).toBe('cc-chase');
+            expect(chaseMatch?.cc_txn_ids[0]).toBe('cc-chase');
         });
     });
 
@@ -297,5 +297,113 @@ describe('matchPayments', () => {
             expect(result.stats.total_cc_candidates).toBe(1);
             expect(result.stats.matches_found).toBe(1);
         });
+    });
+
+    describe('B-5 - Short Pattern Substring matching', () => {
+        it('rejects substring match for short patterns (e.g. BOA vs BOAT)', () => {
+            const bankTxn = makeTxn({
+                raw_description: 'PAYMENT FOR BOAT RENTAL',
+                signed_amount: '-100.00',
+            });
+            const result = matchPayments([bankTxn], {
+                patterns: [{ keywords: ['PAYMENT'], pattern: 'BOA', accounts: [2122] }],
+                bankAccountIds: [1120],
+            });
+            expect(result.matches).toHaveLength(0);
+        });
+
+        it('still matches short patterns with word boundaries (e.g. BOA-123)', () => {
+            const bankTxn = makeTxn({
+                raw_description: 'PAYMENT TO BOA-1234',
+                signed_amount: '-100.00',
+            });
+            const ccTxn = makeTxn({ signed_amount: '100.00', account_id: 2122 });
+            const result = matchPayments([bankTxn, ccTxn], {
+                patterns: [{ keywords: ['PAYMENT'], pattern: 'BOA', accounts: [2122] }],
+                bankAccountIds: [1120],
+                ccAccountIds: [2122],
+            });
+            expect(result.matches).toHaveLength(1);
+        });
+    });
+
+    it('solves greedy matching by ranking candidates (B-2)', () => {
+        // bank1 window: Jan 10-20. Matches: cc1 (15), cc2 (19). cc1 is closer.
+        const bank1 = makeTxn({
+            txn_id: 'bank-1',
+            signed_amount: '-100.00',
+            raw_description: 'PAYMENT AMEX',
+            effective_date: '2026-01-15'
+        });
+        // bank2 window: Jan 05-15. Matches only cc1 (15).
+        const bank2 = makeTxn({
+            txn_id: 'bank-2',
+            signed_amount: '-100.00',
+            raw_description: 'PAYMENT AMEX',
+            effective_date: '2026-01-10'
+        });
+
+        const cc1 = makeTxn({
+            txn_id: 'cc-1',
+            signed_amount: '100.00',
+            account_id: 2122,
+            effective_date: '2026-01-15'
+        });
+        const cc2 = makeTxn({
+            txn_id: 'cc-2',
+            signed_amount: '100.00',
+            account_id: 2122,
+            effective_date: '2026-01-19'
+        });
+
+        // If processing bank1 first greedily, it would take cc1 (closer date), leaving bank2 with nothing.
+        // Ranking by candidate count should process bank2 first.
+
+        const result = matchPayments([bank1, bank2, cc1, cc2], {
+            patterns: [{ keywords: ['PAYMENT'], pattern: 'AMEX', accounts: [2122] }],
+            bankAccountIds: [1120],
+            ccAccountIds: [2122]
+        });
+
+        expect(result.matches.length).toBe(2);
+        const bank1Match = result.matches.find(m => m.bank_txn_id === 'bank-1');
+        const bank2Match = result.matches.find(m => m.bank_txn_id === 'bank-2');
+
+        expect(bank2Match?.cc_txn_ids[0]).toBe('cc-1');
+        expect(bank1Match?.cc_txn_ids[0]).toBe('cc-2');
+    });
+
+    it('matches one bank withdrawal to multiple CC payments (B-3)', () => {
+        const bankTxn = makeTxn({
+            txn_id: 'bank-batch',
+            signed_amount: '-1000.00',
+            raw_description: 'PAYMENT AMEX',
+            effective_date: '2026-01-15'
+        });
+
+        const cc1 = makeTxn({
+            txn_id: 'cc-1',
+            signed_amount: '600.00',
+            account_id: 2122,
+            effective_date: '2026-01-15'
+        });
+        const cc2 = makeTxn({
+            txn_id: 'cc-2',
+            signed_amount: '400.00',
+            account_id: 2122,
+            effective_date: '2026-01-15'
+        });
+
+        const result = matchPayments([bankTxn, cc1, cc2], {
+            patterns: [{ keywords: ['PAYMENT'], pattern: 'AMEX', accounts: [2122] }],
+            bankAccountIds: [1120],
+            ccAccountIds: [2122]
+        });
+
+        expect(result.matches).toHaveLength(1);
+        expect(result.matches[0].cc_txn_ids).toHaveLength(2);
+        expect(result.matches[0].cc_txn_ids).toContain('cc-1');
+        expect(result.matches[0].cc_txn_ids).toContain('cc-2');
+        expect(result.matches[0].amount).toBe('1000');
     });
 });

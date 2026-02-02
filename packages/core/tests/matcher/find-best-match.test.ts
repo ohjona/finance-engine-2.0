@@ -162,4 +162,43 @@ describe('findBestMatch', () => {
         expect(result.match).not.toBeNull();
         expect(result.reason).toBe('found');
     });
+
+    it('tie-breaks by amount delta when dates are equal (B-4)', () => {
+        const bankTxn = makeTxn({ signed_amount: '-100.00', effective_date: '2026-01-15' });
+        const ccTxn1 = makeTxn({
+            txn_id: 'cc-exact',
+            signed_amount: '100.00',
+            account_id: 2122,
+            effective_date: '2026-01-17', // 2 days
+        });
+        const ccTxn2 = makeTxn({
+            txn_id: 'cc-tolerance',
+            signed_amount: '100.01',
+            account_id: 2122,
+            effective_date: '2026-01-17', // 2 days (same)
+        });
+        const result = findBestMatch(bankTxn, [ccTxn1, ccTxn2], [2122], defaultConfig);
+        expect(result.match).not.toBeNull();
+        expect(result.match!.txn_id).toBe('cc-exact');
+        expect(result.reason).toBe('found');
+    });
+
+    it('returns ambiguous when both date and amount delta are tied (B-4)', () => {
+        const bankTxn = makeTxn({ signed_amount: '-100.00', effective_date: '2026-01-15' });
+        const ccTxn1 = makeTxn({
+            txn_id: 'cc-tied-1',
+            signed_amount: '100.01',
+            account_id: 2122,
+            effective_date: '2026-01-17',
+        });
+        const ccTxn2 = makeTxn({
+            txn_id: 'cc-tied-2',
+            signed_amount: '100.01',
+            account_id: 2122,
+            effective_date: '2026-01-17',
+        });
+        const result = findBestMatch(bankTxn, [ccTxn1, ccTxn2], [2122], defaultConfig);
+        expect(result.match).toBeNull();
+        expect(result.reason).toBe('ambiguous');
+    });
 });

@@ -228,7 +228,7 @@ export type PaymentPattern = z.infer<typeof PaymentPatternSchema>;
 export const MatchSchema = z.object({
     type: z.literal('payment'),
     bank_txn_id: txnId,
-    cc_txn_id: txnId,
+    cc_txn_ids: z.array(txnId),
     amount: decimalString,
     date_diff_days: z.number().int().min(0),
 });

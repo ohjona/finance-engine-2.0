@@ -1,4 +1,5 @@
 import type { Transaction, PaymentPattern, MatchConfig } from '@finance-engine/shared';
+import type Decimal from 'decimal.js';
 
 /**
  * Options for matchPayments function.
@@ -16,6 +17,7 @@ export interface MatcherOptions {
 export interface MatchCandidate {
     txn: Transaction;
     dateDiff: number;
+    amountDiff: Decimal;
 }
 
 /**

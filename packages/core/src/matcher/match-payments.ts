@@ -8,7 +8,7 @@ import type {
 } from '@finance-engine/shared';
 import { MATCHING_CONFIG, DEFAULT_PAYMENT_PATTERNS } from '@finance-engine/shared';
 import type { MatcherOptions } from './types.js';
-import { findBestMatch } from './find-best-match.js';
+import { findBestMatch, isPotentialCandidate } from './find-best-match.js';
 import { daysBetween } from './date-diff.js';
 import { normalizeDescription } from '../utils/normalize.js';
 
@@ -24,6 +24,21 @@ import { normalizeDescription } from '../utils/normalize.js';
  * @param options - Matcher configuration
  * @returns MatchResult with matches, review updates, warnings, stats
  */
+/**
+ * Checks if a search string matches text, using word boundaries for short strings
+ * to avoid false positives (e.g., 'BOA' matching 'BOAT').
+ */
+function matchesWithBoundary(text: string, search: string): boolean {
+    const uppercaseSearch = search.toUpperCase();
+    if (search.length <= 4) {
+        // Use word boundary for short strings
+        // \b matches start/end of string or position between word and non-word char
+        const regex = new RegExp(`\\b${uppercaseSearch}\\b`);
+        return regex.test(text);
+    }
+    return text.includes(uppercaseSearch);
+}
+
 export function matchPayments(
     transactions: Transaction[],
     options: MatcherOptions = {}
@@ -74,81 +89,117 @@ export function matchPayments(
         new Decimal(t.signed_amount).isPositive()
     );
 
-    // Track matched CC txns to prevent double-matching
-    const matchedCcTxnIds = new Set<string>();
+    // B-2: Rank bank transactions by potential candidate count to solve greediness.
+    // 1. Identify which bank transactions match a pattern and find ALL their potential CC candidates.
+    interface BankAttempt {
+        bankTxn: Transaction;
+        possibleAccounts: number[];
+        initialCandidatesCount: number;
+    }
 
-    let ambiguousFlagged = 0;
-    let noCandidateFlagged = 0;
+    const attempts: BankAttempt[] = [];
 
-    // Process each bank transaction
     for (const bankTxn of bankTxns) {
         // Skip zero-amount (IK D6.9)
         if (new Decimal(bankTxn.signed_amount).isZero()) continue;
 
         const desc = normalizeDescription(bankTxn.raw_description);
 
-        // Check each pattern
+        // Find matching pattern
         for (const pattern of patterns) {
-            // Must have BOTH keyword AND pattern (IK D6.5)
-            const hasKeyword = pattern.keywords.some(kw =>
-                desc.includes(kw.toUpperCase())
+            const hasKeyword = pattern.keywords.some(kw => matchesWithBoundary(desc, kw));
+            const hasPattern = matchesWithBoundary(desc, pattern.pattern);
+
+            if (hasKeyword && hasPattern) {
+                const possibleAccounts = pattern.accounts.filter(id => ccAccountIds.includes(id));
+                if (possibleAccounts.length > 0) {
+                    // Count potential candidates initially
+                    const candidatesCount = ccTxns.filter(ccTxn =>
+                        isPotentialCandidate(bankTxn, ccTxn, possibleAccounts, config)
+                    ).length;
+
+                    attempts.push({ bankTxn, possibleAccounts, initialCandidatesCount: candidatesCount });
+                    break; // Pick first matching pattern
+                }
+            }
+        }
+    }
+
+    // 2. Sort attempts - fewer candidates first (clear winners first)
+    attempts.sort((a, b) => a.initialCandidatesCount - b.initialCandidatesCount);
+
+    // Track matched CC txns to prevent double-matching
+    const matchedCcTxnIds = new Set<string>();
+    let ambiguousFlagged = 0;
+    let noCandidateFlagged = 0;
+
+    // 3. Process each attempt in sorted order
+    for (const attempt of attempts) {
+        const { bankTxn, possibleAccounts } = attempt;
+
+        // Find available CC transactions (not already matched)
+        const availableCcTxns = ccTxns.filter(t => !matchedCcTxnIds.has(t.txn_id));
+
+        // Find best match among available
+        const { match, reason } = findBestMatch(
+            bankTxn,
+            availableCcTxns,
+            possibleAccounts,
+            config
+        );
+
+        if (match) {
+            matches.push({
+                type: 'payment',
+                bank_txn_id: bankTxn.txn_id,
+                cc_txn_ids: [match.txn_id],
+                amount: new Decimal(bankTxn.signed_amount).abs().toString(),
+                date_diff_days: daysBetween(bankTxn.effective_date, match.effective_date),
+            });
+            matchedCcTxnIds.add(match.txn_id);
+        } else if (reason === 'no_candidates') {
+            // B-3: Check for 1:N match if no single candidate found
+            // If the sum of ALL potential (available) candidates equals the bank amount,
+            // we treat it as a multi-statement payment.
+            const potCandidates = availableCcTxns.filter(t =>
+                isPotentialCandidate(bankTxn, t, possibleAccounts, config, true)
             );
-            const hasPattern = desc.includes(pattern.pattern.toUpperCase());
 
-            if (!hasKeyword || !hasPattern) continue;
+            if (potCandidates.length >= 2) {
+                const totalPotAmount = potCandidates.reduce(
+                    (sum, t) => sum.plus(new Decimal(t.signed_amount).abs()),
+                    new Decimal(0)
+                );
 
-            // Get possible CC accounts for this pattern
-            const possibleAccounts = pattern.accounts.filter(id =>
-                ccAccountIds.includes(id)
-            );
-
-            if (possibleAccounts.length === 0) {
-                // Pattern matched but no accounts configured
-                continue;
+                if (totalPotAmount.equals(new Decimal(bankTxn.signed_amount).abs())) {
+                    matches.push({
+                        type: 'payment',
+                        bank_txn_id: bankTxn.txn_id,
+                        cc_txn_ids: potCandidates.map(t => t.txn_id),
+                        amount: totalPotAmount.toString(),
+                        // Use max date diff for the set
+                        date_diff_days: Math.max(...potCandidates.map(t =>
+                            daysBetween(bankTxn.effective_date, t.effective_date)
+                        )),
+                    });
+                    potCandidates.forEach(t => matchedCcTxnIds.add(t.txn_id));
+                    continue; // Success
+                }
             }
 
-            // Find available CC transactions (not already matched)
-            const availableCcTxns = ccTxns.filter(t =>
-                !matchedCcTxnIds.has(t.txn_id)
-            );
-
-            // Find best match
-            const { match, reason } = findBestMatch(
-                bankTxn,
-                availableCcTxns,
-                possibleAccounts,
-                config
-            );
-
-            if (match) {
-                matches.push({
-                    type: 'payment',
-                    bank_txn_id: bankTxn.txn_id,
-                    cc_txn_id: match.txn_id,
-                    amount: new Decimal(bankTxn.signed_amount).abs().toString(),
-                    date_diff_days: daysBetween(bankTxn.effective_date, match.effective_date),
-                });
-                matchedCcTxnIds.add(match.txn_id);
-                break; // Stop checking patterns for this bank txn
-            } else if (reason === 'ambiguous') {
-                // Flag for review (IK D6.3)
-                reviewUpdates.push({
-                    txn_id: bankTxn.txn_id,
-                    needs_review: true,
-                    add_review_reasons: ['ambiguous_match_candidates'],
-                });
-                ambiguousFlagged++;
-                break;
-            } else if (reason === 'no_candidates') {
-                // Flag: pattern matched but no CC candidate (IK D6.6)
-                reviewUpdates.push({
-                    txn_id: bankTxn.txn_id,
-                    needs_review: true,
-                    add_review_reasons: ['payment_pattern_no_cc_match'],
-                });
-                noCandidateFlagged++;
-                break;
-            }
+            reviewUpdates.push({
+                txn_id: bankTxn.txn_id,
+                needs_review: true,
+                add_review_reasons: ['payment_pattern_no_cc_match'],
+            });
+            noCandidateFlagged++;
+        } else if (reason === 'ambiguous') {
+            reviewUpdates.push({
+                txn_id: bankTxn.txn_id,
+                needs_review: true,
+                add_review_reasons: ['ambiguous_match_candidates'],
+            });
+            ambiguousFlagged++;
         }
     }
 
@@ -157,7 +208,7 @@ export function matchPayments(
         reviewUpdates,
         warnings,
         stats: {
-            total_bank_candidates: bankTxns.length,
+            total_bank_candidates: attempts.length, // Bank txns that matched a pattern
             total_cc_candidates: ccTxns.length,
             matches_found: matches.length,
             ambiguous_flagged: ambiguousFlagged,

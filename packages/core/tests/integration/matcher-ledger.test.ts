@@ -117,7 +117,7 @@ describe('Matcher-Ledger Integration', () => {
 
         expect(matchResult.matches).toHaveLength(1);
         expect(matchResult.matches[0].bank_txn_id).toBe('bank-pay');
-        expect(matchResult.matches[0].cc_txn_id).toBe('cc-pay');
+        expect(matchResult.matches[0].cc_txn_ids[0]).toBe('cc-pay');
 
         // 4. Step 3: Generate Ledger
         const ledgerResult = generateJournal(categorizedTxns, matchResult.matches, {

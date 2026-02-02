@@ -21,42 +21,61 @@ import { resolveAccountName, getAccountType } from './account-resolve.js';
 export function generateMatchedPaymentEntry(
     match: Match,
     bankTxn: Transaction,
-    ccTxn: Transaction,
+    ccTxns: Transaction[],
     entryId: number,
     accounts: Map<number, AccountInfo>
 ): { entry: JournalEntry; warnings: string[] } {
     const warnings: string[] = [];
     const amount = new Decimal(match.amount);
 
-    // Resolve account names
-    const ccAccount = resolveAccountName(ccTxn.account_id, accounts);
-    if (ccAccount.warning) warnings.push(ccAccount.warning);
+    // B-6: Validate match amount against transactions
+    const bankAmount = new Decimal(bankTxn.signed_amount).abs();
+    const ccAmountSum = ccTxns.reduce(
+        (sum, t) => sum.plus(new Decimal(t.signed_amount).abs()),
+        new Decimal(0)
+    );
 
+    if (!amount.equals(bankAmount) || !amount.equals(ccAmountSum)) {
+        const ccIds = ccTxns.map(t => t.txn_id).join(', ');
+        throw new Error(
+            `Match amount mismatch: match=${match.amount}, bank=${bankAmount}, ccSum=${ccAmountSum}. ` +
+            `Transactions: ${bankTxn.txn_id}, CCs: [${ccIds}]`
+        );
+    }
+
+    const lines: JournalLine[] = [];
+
+    // DR Credit Cards (reduce liability)
+    for (const ccTxn of ccTxns) {
+        const ccAccount = resolveAccountName(ccTxn.account_id, accounts);
+        if (ccAccount.warning) warnings.push(ccAccount.warning);
+
+        lines.push({
+            account_id: ccTxn.account_id,
+            account_name: ccAccount.name,
+            debit: new Decimal(ccTxn.signed_amount).abs().toString(),
+            credit: null,
+            txn_id: ccTxn.txn_id,
+        });
+    }
+
+    // CR Bank (reduce asset)
     const bankAccount = resolveAccountName(bankTxn.account_id, accounts);
     if (bankAccount.warning) warnings.push(bankAccount.warning);
 
-    const lines: JournalLine[] = [
-        {
-            account_id: ccTxn.account_id,
-            account_name: ccAccount.name,
-            debit: amount.toString(),
-            credit: null,
-            txn_id: ccTxn.txn_id,
-        },
-        {
-            account_id: bankTxn.account_id,
-            account_name: bankAccount.name,
-            debit: null,
-            credit: amount.toString(),
-            txn_id: bankTxn.txn_id,
-        },
-    ];
+    lines.push({
+        account_id: bankTxn.account_id,
+        account_name: bankAccount.name,
+        debit: null,
+        credit: amount.toString(),
+        txn_id: bankTxn.txn_id,
+    });
 
     return {
         entry: {
             entry_id: entryId,
             date: bankTxn.effective_date,
-            description: `CC Payment: ${ccAccount.name}`,
+            description: `Payment match - ${bankTxn.description}`,
             lines,
         },
         warnings,
@@ -218,7 +237,7 @@ export function generateJournal(
     const matchByBankTxnId = new Map<string, Match>();
     for (const match of matches) {
         matchedTxnIds.add(match.bank_txn_id);
-        matchedTxnIds.add(match.cc_txn_id);
+        match.cc_txn_ids.forEach(id => matchedTxnIds.add(id));
         matchByBankTxnId.set(match.bank_txn_id, match);
     }
 
@@ -246,14 +265,20 @@ export function generateJournal(
         // Is this a matched payment?
         const match = matchByBankTxnId.get(txn.txn_id);
         if (match) {
-            const ccTxn = txnById.get(match.cc_txn_id);
-            if (!ccTxn) {
-                warnings.push(`Match references unknown CC txn: ${match.cc_txn_id}`);
-                continue;
+            const ccTxns: Transaction[] = [];
+            for (const id of match.cc_txn_ids) {
+                const ct = txnById.get(id);
+                if (ct) {
+                    ccTxns.push(ct);
+                } else {
+                    warnings.push(`Match references unknown CC txn: ${id}`);
+                }
             }
 
+            if (ccTxns.length === 0) continue;
+
             const { entry, warnings: entryWarnings } = generateMatchedPaymentEntry(
-                match, txn, ccTxn, nextEntryId, options.accounts
+                match, txn, ccTxns, nextEntryId, options.accounts
             );
             warnings.push(...entryWarnings);
             entries.push(entry);

@@ -170,7 +170,7 @@ describe('generateMatchedPaymentEntry', () => {
         const match: Match = {
             type: 'payment',
             bank_txn_id: 'bank-123',
-            cc_txn_id: 'cc-456',
+            cc_txn_ids: ['cc-456'],
             amount: '1234.56',
             date_diff_days: 2,
         };
@@ -185,7 +185,7 @@ describe('generateMatchedPaymentEntry', () => {
             account_id: 2122,
         });
 
-        const { entry } = generateMatchedPaymentEntry(match, bankTxn, ccTxn, 1, accounts);
+        const { entry } = generateMatchedPaymentEntry(match, bankTxn, [ccTxn], 1, accounts);
 
         expect(entry.lines).toHaveLength(2);
 
@@ -196,6 +196,22 @@ describe('generateMatchedPaymentEntry', () => {
         const creditLine = entry.lines.find(l => l.credit !== null);
         expect(creditLine?.account_id).toBe(1120); // Checking
         expect(creditLine?.credit).toBe('1234.56');
+    });
+
+    it('throws error on match amount mismatch (B-6)', () => {
+        const match: Match = {
+            type: 'payment',
+            bank_txn_id: 'b',
+            cc_txn_ids: ['c'],
+            amount: '100.00',
+            date_diff_days: 0,
+        };
+        const bankTxn = makeTxn({ signed_amount: '-101.00' });
+        const ccTxn = makeTxn({ signed_amount: '100.00' });
+
+        expect(() =>
+            generateMatchedPaymentEntry(match, bankTxn, [ccTxn], 1, accounts)
+        ).toThrow(/Match amount mismatch/);
     });
 });
 
@@ -219,7 +235,7 @@ describe('generateJournal', () => {
         const match: Match = {
             type: 'payment',
             bank_txn_id: 'bank-payment',
-            cc_txn_id: 'cc-payment',
+            cc_txn_ids: ['cc-payment'],
             amount: '500.00',
             date_diff_days: 0,
         };
