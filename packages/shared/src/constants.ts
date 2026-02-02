@@ -51,3 +51,33 @@ export const TXN_ID = {
     LENGTH: 16,
     COLLISION_SUFFIX_START: 2,
 } as const;
+
+// ============================================================================
+// Phase 4: Matching & Ledger Constants
+// ============================================================================
+
+/**
+ * Default payment patterns for common card payments.
+ * Per PRD §10.3, IK D6.5.
+ *
+ * NOTE: `accounts` arrays are EMPTY by default — caller must provide
+ * actual account IDs from their chart of accounts.
+ */
+export const DEFAULT_PAYMENT_PATTERNS = [
+    { keywords: ['PAYMENT', 'AUTOPAY', 'RECV'], pattern: 'AMEX', accounts: [] },
+    { keywords: ['PAYMENT', 'RECV'], pattern: 'CHASE CARD', accounts: [] },
+    { keywords: ['PAYMENT', 'RECV'], pattern: 'DISCOVER', accounts: [] },
+    { keywords: ['PAYMENT', 'RECV'], pattern: 'BOA', accounts: [] },
+    { keywords: ['PAYMENT', 'AUTOPAY', 'RECV'], pattern: 'CITI', accounts: [] },
+] as const;
+
+/**
+ * Account type ranges per IK D2.11.
+ */
+export const ACCOUNT_RANGES = {
+    ASSET: { min: 1000, max: 1999 },
+    LIABILITY: { min: 2000, max: 2999 },
+    INCOME: { min: 3000, max: 3999 },
+    EXPENSE: { min: 4000, max: 4999 },
+    SPECIAL: { min: 5000, max: 5999 },
+} as const;

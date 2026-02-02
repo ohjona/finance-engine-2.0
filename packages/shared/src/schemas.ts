@@ -206,6 +206,141 @@ export const JournalEntrySchema = z.object({
 export type JournalEntry = z.infer<typeof JournalEntrySchema>;
 
 // ============================================================================
+// Payment Matching Schemas (Phase 4)
+// ============================================================================
+
+/**
+ * Payment pattern for matching bank withdrawals to CC payments.
+ * Per PRD §10.3, IK D6.5.
+ */
+export const PaymentPatternSchema = z.object({
+    keywords: z.array(z.string().min(1)),  // Required keywords (PAYMENT, AUTOPAY)
+    pattern: z.string().min(1),             // Card identifier (AMEX, CHASE CARD)
+    accounts: z.array(accountId),           // Possible CC account IDs
+});
+
+export type PaymentPattern = z.infer<typeof PaymentPatternSchema>;
+
+/**
+ * Match between bank withdrawal and CC payment.
+ * Per PRD §10.3.
+ */
+export const MatchSchema = z.object({
+    type: z.literal('payment'),
+    bank_txn_id: txnId,
+    cc_txn_ids: z.array(txnId),
+    amount: decimalString,
+    date_diff_days: z.number().int().min(0),
+});
+
+export type Match = z.infer<typeof MatchSchema>;
+
+/**
+ * Review update descriptor — pure function pattern.
+ * Describes mutations without performing them.
+ */
+export const ReviewUpdateSchema = z.object({
+    txn_id: txnId,
+    needs_review: z.boolean(),
+    add_review_reasons: z.array(z.string()),
+});
+
+export type ReviewUpdate = z.infer<typeof ReviewUpdateSchema>;
+
+/**
+ * Matching statistics for transparency.
+ */
+export const MatchStatsSchema = z.object({
+    total_bank_candidates: z.number().int().min(0),
+    total_cc_candidates: z.number().int().min(0),
+    matches_found: z.number().int().min(0),
+    ambiguous_flagged: z.number().int().min(0),
+    no_candidate_flagged: z.number().int().min(0),
+    partial_payment_flagged: z.number().int().min(0).optional(),
+});
+
+export type MatchStats = z.infer<typeof MatchStatsSchema>;
+
+/**
+ * Result of payment matching operation.
+ * Pure function pattern: returns data + side-effect descriptors.
+ */
+export const MatchResultSchema = z.object({
+    matches: z.array(MatchSchema),
+    reviewUpdates: z.array(ReviewUpdateSchema),
+    warnings: z.array(z.string()),
+    stats: MatchStatsSchema,
+});
+
+export type MatchResult = z.infer<typeof MatchResultSchema>;
+
+/**
+ * Configuration for matching operations.
+ * Per IK D6.1, D6.2.
+ */
+export const MatchConfigSchema = z.object({
+    dateToleranceDays: z.number().int().min(0).default(5),
+    amountTolerance: decimalString.default('0.01'),
+});
+
+export type MatchConfig = z.infer<typeof MatchConfigSchema>;
+
+// ============================================================================
+// Ledger Generation Schemas (Phase 4)
+// ============================================================================
+
+/**
+ * Result of journal validation.
+ * Per IK D7.5.
+ */
+export const JournalValidationResultSchema = z.object({
+    valid: z.boolean(),
+    total_debits: decimalString,
+    total_credits: decimalString,
+    difference: decimalString,
+    errors: z.array(z.string()),
+    warnings: z.array(z.string()),
+});
+
+export type JournalValidationResult = z.infer<typeof JournalValidationResultSchema>;
+
+/**
+ * Ledger generation statistics.
+ */
+export const LedgerStatsSchema = z.object({
+    total_entries: z.number().int().min(0),
+    total_lines: z.number().int().min(0),
+    matched_payment_entries: z.number().int().min(0),
+    regular_entries: z.number().int().min(0),
+});
+
+export type LedgerStats = z.infer<typeof LedgerStatsSchema>;
+
+/**
+ * Result of ledger generation.
+ */
+export const LedgerResultSchema = z.object({
+    entries: z.array(JournalEntrySchema),
+    validation: JournalValidationResultSchema,
+    warnings: z.array(z.string()),
+    stats: LedgerStatsSchema,
+});
+
+export type LedgerResult = z.infer<typeof LedgerResultSchema>;
+
+/**
+ * Account info for name resolution.
+ * Passed as parameter per headless core design.
+ */
+export const AccountInfoSchema = z.object({
+    id: accountId,
+    name: z.string(),
+    type: z.enum(['asset', 'liability', 'income', 'expense', 'special']),
+});
+
+export type AccountInfo = z.infer<typeof AccountInfoSchema>;
+
+// ============================================================================
 // Run Manifest Schema
 // ============================================================================
 

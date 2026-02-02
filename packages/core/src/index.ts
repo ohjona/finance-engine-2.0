@@ -38,3 +38,10 @@ export { normalizeDescription } from './utils/index.js';
 export { parseAmex } from './parser/index.js';
 export { detectParser, extractAccountId, getSupportedParsers } from './parser/index.js';
 export type { ParserFn, ParserDetectionResult } from './parser/index.js';
+
+// Categorizer
+export * from './categorizer/index.js';
+
+// Phase 4: Matcher & Ledger
+export * from './matcher/index.js';
+export * from './ledger/index.js';
