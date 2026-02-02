@@ -15,6 +15,13 @@
     },
     "dependencies": {
         "@finance-engine/core": "workspace:*",
-        "@finance-engine/shared": "workspace:*"
+        "@finance-engine/shared": "workspace:*",
+        "commander": "^11.0.0",
+        "decimal.js": "^10.4.0",
+        "exceljs": "^4.4.0",
+        "yaml": "^2.3.0"
+    },
+    "devDependencies": {
+        "@types/commander": "^2.12.5"
     }
 }
