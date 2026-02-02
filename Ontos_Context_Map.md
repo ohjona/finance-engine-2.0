@@ -27,12 +27,14 @@ This document provides a tiered index of the knowledge graph for AI orientation.
 ### Recent Activity
 | Log | Status | Summary |
 |-----|--------|---------|
+| Phase 3 Categorizer | complete | Hardening merged, tagged v2.0.0-phase3 |
 | log_20260201_phase-2-verification-blockers-cleanup | active | No summary |
 
 ### Critical Paths
 - **Entry:** `docs/reference/Ontos_Manual.md`
 - **Strategy:** `.ontos-internal/strategy/`
 - **Logs:** `.ontos-internal/logs/`
+- **Phase 3 Summary:** `docs/strategy/Phase3/Phase3_Hardening_Summary.md`
 
 ---
 
