@@ -1,9 +1,20 @@
 {
     "name": "finance-engine",
     "version": "2.0.0",
+    "description": "Personal finance automation for monthly bookkeeping",
     "private": true,
     "type": "module",
     "packageManager": "pnpm@9.0.0",
+    "author": "Jonathan Oh",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ohjona/finance-engine-2.0.git"
+    },
+    "bugs": {
+        "url": "https://github.com/ohjona/finance-engine-2.0/issues"
+    },
+    "homepage": "https://github.com/ohjona/finance-engine-2.0#readme",
     "scripts": {
         "build": "pnpm -r build",
         "test": "pnpm -r test",

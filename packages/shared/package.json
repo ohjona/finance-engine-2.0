@@ -1,7 +1,15 @@
 {
     "name": "@finance-engine/shared",
     "version": "2.0.0",
+    "description": "Shared types, schemas, and constants for Finance Engine",
     "type": "module",
+    "author": "Jonathan Oh",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ohjona/finance-engine-2.0.git",
+        "directory": "packages/shared"
+    },
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {

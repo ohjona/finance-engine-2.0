@@ -1,7 +1,15 @@
 {
     "name": "@finance-engine/cli",
     "version": "2.0.0",
+    "description": "CLI for Finance Engine - personal finance automation",
     "type": "module",
+    "author": "Jonathan Oh",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ohjona/finance-engine-2.0.git",
+        "directory": "packages/cli"
+    },
     "bin": {
         "fineng": "./dist/index.js"
     },

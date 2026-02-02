@@ -52,12 +52,12 @@ npx fineng add-rule "STARBUCKS" 4200 --note "Coffee"
 
 | Institution | File Format | Example Filename |
 |-------------|-------------|------------------|
-| American Express | XLSX | `amex_2122_202601.xlsx` |
-| Chase Checking | CSV | `chase_checking_1110_202601.csv` |
-| Bank of America Checking | CSV | `boa_checking_1120_202601.csv` |
-| Bank of America Credit | CSV | `boa_credit_2130_202601.csv` |
-| Fidelity | CSV | `fidelity_1140_202601.csv` |
-| Discover | CSV | `discover_2150_202601.csv` |
+| American Express | XLSX | `amex_1234_202601.xlsx` |
+| Chase Checking | CSV | `chase_checking_5678_202601.csv` |
+| Bank of America Checking | CSV | `boa_checking_1111_202601.csv` |
+| Bank of America Credit | CSV | `boa_credit_2222_202601.csv` |
+| Fidelity | CSV | `fidelity_3333_202601.csv` |
+| Discover | CSV | `discover_4444_202601.csv` |
 
 ### 4-Layer Categorization
 
@@ -100,8 +100,8 @@ my-finances/
 │   └── base-rules.yaml     # General categorization patterns
 ├── imports/
 │   └── 2026-01/            # Monthly import folders
-│       ├── amex_2122_202601.xlsx
-│       ├── chase_checking_1110_202601.csv
+│       ├── amex_1234_202601.xlsx
+│       ├── chase_checking_5678_202601.csv
 │       └── ...
 ├── outputs/
 │   └── 2026-01/            # Generated output files
@@ -117,6 +117,55 @@ The CLI auto-detects your workspace by looking for `config/user-rules.yaml` in t
 
 ---
 
+## Setting Up Your Accounts
+
+Finance Engine uses a flexible account configuration. Edit `config/accounts.json` to match YOUR financial accounts:
+
+### Step 1: Identify Your Accounts
+
+List your bank accounts and credit cards with their last 4 digits:
+- Chase Checking (...5678) → ID: `5678`
+- Amex Gold (...1234) → ID: `1234`
+- Discover Card (...4444) → ID: `4444`
+
+### Step 2: Create accounts.json
+
+```json
+{
+  "accounts": {
+    "5678": {
+      "name": "Chase Checking",
+      "type": "asset",
+      "institution": "Chase"
+    },
+    "1234": {
+      "name": "Amex Gold",
+      "type": "liability",
+      "institution": "American Express"
+    },
+    "4444": {
+      "name": "Discover Card",
+      "type": "liability",
+      "institution": "Discover"
+    },
+    "4100": { "name": "Groceries", "type": "expense" },
+    "4200": { "name": "Dining", "type": "expense" },
+    "4300": { "name": "Transportation", "type": "expense" }
+  }
+}
+```
+
+### Step 3: Name Your Import Files
+
+Use your account IDs in the filenames when downloading bank exports:
+- `amex_1234_202601.xlsx`
+- `chase_checking_5678_202601.csv`
+- `discover_4444_202601.csv`
+
+The system will automatically detect the parser and account based on the filename.
+
+---
+
 ## Configuration
 
 ### Chart of Accounts (`config/accounts.json`)
@@ -124,15 +173,15 @@ The CLI auto-detects your workspace by looking for `config/user-rules.yaml` in t
 ```json
 {
   "accounts": {
-    "1110": {
-      "name": "Chase Checking",
+    "5678": {
+      "name": "Primary Checking",
       "type": "asset",
-      "institution": "Chase"
+      "institution": "Your Bank"
     },
-    "2122": {
-      "name": "Amex Delta Reserve",
+    "1234": {
+      "name": "Rewards Credit Card",
       "type": "liability",
-      "institution": "American Express"
+      "institution": "Card Issuer"
     },
     "4200": {
       "name": "Dining",
@@ -141,6 +190,8 @@ The CLI auto-detects your workspace by looking for `config/user-rules.yaml` in t
   }
 }
 ```
+
+> **Tip:** Use the last 4 digits of your account number as the account ID for easy identification.
 
 **Account ID ranges:**
 - `1000-1999`: Assets (checking, savings)

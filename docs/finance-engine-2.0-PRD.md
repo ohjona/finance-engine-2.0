@@ -104,13 +104,13 @@ Manual exports    →      Plaid API (if needed)
 
 ### 2.1 Who is the User?
 
-Jonathan Oh - a professional who has been maintaining personal finances using a double-entry bookkeeping system in Excel since March 2015.
+The primary user maintains personal finances using a double-entry bookkeeping system in Excel, with over 10 years of transaction history.
 
-**Financial accounts:**
-- Multiple credit cards (Amex Delta Reserve, Amex Platinum, Chase Freedom, BoA Cashback, Fidelity, Discover, etc.)
-- Multiple bank accounts (Chase Checking, BoA Checking, Fidelity, joint accounts)
-- Investment accounts (Interactive Brokers, Betterment, Robinhood, Coinbase, etc.)
-- Work expenses tracked separately (McKinsey reimbursements)
+**Typical financial accounts:**
+- Multiple credit cards (rewards cards, cashback cards, etc.)
+- Multiple bank accounts (checking, savings, joint accounts)
+- Investment accounts (brokerage, retirement, etc.)
+- Work expenses tracked separately (reimbursements)
 
 **Existing system:**
 - Comprehensive Excel-based accounting with 10+ years of history
@@ -484,14 +484,14 @@ const entry: JournalEntry = {
 {
     "accounts": {
         "1120": {
-            "name": "Chase Checking 6917",
+            "name": "Primary Checking",
             "type": "asset",
-            "institution": "Chase"
+            "institution": "Your Bank"
         },
         "2122": {
-            "name": "Amex Delta Sky Reserve",
+            "name": "Rewards Credit Card",
             "type": "liability",
-            "institution": "Amex"
+            "institution": "Card Issuer"
         },
         "4260": {
             "name": "Rideshare (Uber/Lyft)",
@@ -1210,7 +1210,7 @@ CC payment:      signed_amount = +$1,234.56 on Amex Delta
 
 Journal Entry:
   DR 2122  Amex Delta Sky Reserve    $1,234.56  (reduce liability)
-  CR 1120  Chase Checking 6917       $1,234.56  (reduce asset)
+  CR 1120  Primary Checking       $1,234.56  (reduce asset)
 ```
 
 ---
@@ -1665,7 +1665,7 @@ Transaction: signed_amount = -$1,234.56 Amex autopay from Chase
 
 Journal Entry:
   DR 2122  Amex Delta Sky Reserve   $1,234.56  (reduce what you owe)
-  CR 1120  Chase Checking 6917      $1,234.56  (reduce your cash)
+  CR 1120  Primary Checking      $1,234.56  (reduce your cash)
 ```
 
 **Transfer to joint account:**
@@ -1674,7 +1674,7 @@ Transaction: signed_amount = -$500.00 transfer to joint checking
 
 Journal Entry:
   DR 5110  Chase Joint Checking     $500.00  (increase joint account)
-  CR 1120  Chase Checking 6917      $500.00  (reduce personal account)
+  CR 1120  Primary Checking      $500.00  (reduce personal account)
 ```
 
 **McKinsey reimbursement received:**
@@ -1682,7 +1682,7 @@ Journal Entry:
 Transaction: signed_amount = +$234.56 MCK CO INC deposit
 
 Journal Entry:
-  DR 1120  Chase Checking 6917      $234.56  (cash received)
+  DR 1120  Primary Checking      $234.56  (cash received)
   CR 3130  McKinsey Reimbursement   $234.56  (income)
 ```
 
@@ -1705,7 +1705,7 @@ Journal Entry:
 | 336 | Office subscription | 4860 | Software Subscriptions |
 | 398 | ETC Expense | 4990 | Miscellaneous Expense |
 | 423 | Amex Delta Sky Reserve | 2122 | Amex Delta Sky Reserve |
-| 455 | Chase Checking 6917 | 1120 | Chase Checking 6917 |
+| 455 | Primary Checking | 1120 | Primary Checking |
 
 *(Full mapping in Chart_of_Accounts_v3_Migration.xlsx)*
 
