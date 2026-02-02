@@ -28,12 +28,23 @@ import { normalizeDescription } from '../utils/normalize.js';
  * Checks if a search string matches text, using word boundaries for short strings
  * to avoid false positives (e.g., 'BOA' matching 'BOAT').
  */
+/**
+ * Escapes regex metacharacters in a string.
+ */
+function escapeRegex(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Checks if a search string matches text, using word boundaries for short strings
+ * to avoid false positives (e.g., 'BOA' matching 'BOAT').
+ */
 function matchesWithBoundary(text: string, search: string): boolean {
     const uppercaseSearch = search.toUpperCase();
+    const escapedSearch = escapeRegex(uppercaseSearch);
     if (search.length <= 4) {
         // Use word boundary for short strings
-        // \b matches start/end of string or position between word and non-word char
-        const regex = new RegExp(`\\b${uppercaseSearch}\\b`);
+        const regex = new RegExp(`\\b${escapedSearch}\\b`);
         return regex.test(text);
     }
     return text.includes(uppercaseSearch);
@@ -77,35 +88,33 @@ export function matchPayments(
     }
 
     // Filter transactions
-    // Bank: asset accounts with negative amount (withdrawal)
     const bankTxns = transactions.filter(t =>
         bankAccountIds.includes(t.account_id) &&
         new Decimal(t.signed_amount).isNegative()
     );
 
-    // CC: liability accounts with positive amount (payment received)
     const ccTxns = transactions.filter(t =>
         ccAccountIds.includes(t.account_id) &&
         new Decimal(t.signed_amount).isPositive()
     );
 
     // B-2: Rank bank transactions by potential candidate count to solve greediness.
-    // 1. Identify which bank transactions match a pattern and find ALL their potential CC candidates.
     interface BankAttempt {
         bankTxn: Transaction;
         possibleAccounts: number[];
         initialCandidatesCount: number;
+        minDateDiff: number;
+        minAmountDiff: Decimal;
+        candidateIds: string[];
     }
 
     const attempts: BankAttempt[] = [];
 
     for (const bankTxn of bankTxns) {
-        // Skip zero-amount (IK D6.9)
         if (new Decimal(bankTxn.signed_amount).isZero()) continue;
 
         const desc = normalizeDescription(bankTxn.raw_description);
 
-        // Find matching pattern
         for (const pattern of patterns) {
             const hasKeyword = pattern.keywords.some(kw => matchesWithBoundary(desc, kw));
             const hasPattern = matchesWithBoundary(desc, pattern.pattern);
@@ -113,39 +122,119 @@ export function matchPayments(
             if (hasKeyword && hasPattern) {
                 const possibleAccounts = pattern.accounts.filter(id => ccAccountIds.includes(id));
                 if (possibleAccounts.length > 0) {
-                    // Count potential candidates initially
-                    const candidatesCount = ccTxns.filter(ccTxn =>
+                    const candidates = ccTxns.filter(ccTxn =>
                         isPotentialCandidate(bankTxn, ccTxn, possibleAccounts, config)
-                    ).length;
+                    );
 
-                    attempts.push({ bankTxn, possibleAccounts, initialCandidatesCount: candidatesCount });
-                    break; // Pick first matching pattern
+                    let minDateDiff = Infinity;
+                    let minAmountDiff = new Decimal(Infinity);
+
+                    if (candidates.length > 0) {
+                        minDateDiff = Math.min(...candidates.map(c =>
+                            daysBetween(bankTxn.effective_date, c.effective_date)
+                        ));
+                        minAmountDiff = Decimal.min(...candidates.map(c =>
+                            new Decimal(bankTxn.signed_amount).abs().minus(new Decimal(c.signed_amount).abs()).abs()
+                        ));
+                    }
+
+                    attempts.push({
+                        bankTxn,
+                        possibleAccounts,
+                        initialCandidatesCount: candidates.length,
+                        minDateDiff,
+                        minAmountDiff,
+                        candidateIds: candidates.map(c => c.txn_id)
+                    });
+                    break;
                 }
             }
         }
     }
 
-    // 2. Sort attempts - fewer candidates first (clear winners first)
-    attempts.sort((a, b) => a.initialCandidatesCount - b.initialCandidatesCount);
+    // 2. Sort attempts - Tie-aware fallback (Option B)
+    attempts.sort((a, b) => {
+        if (a.initialCandidatesCount !== b.initialCandidatesCount) {
+            return a.initialCandidatesCount - b.initialCandidatesCount;
+        }
+        if (a.minDateDiff !== b.minDateDiff) {
+            return a.minDateDiff - b.minDateDiff;
+        }
+        return a.minAmountDiff.minus(b.minAmountDiff).toNumber();
+    });
 
-    // Track matched CC txns to prevent double-matching
     const matchedCcTxnIds = new Set<string>();
+    const ambiguousTxnIds = new Set<string>();
+
+    // 2.5 Identify multi-way ties (IK D6.3 refined)
+    // We group contiguous attempts with identical metrics.
+    // If any pair within the group overlaps on candidates, all in the group are ambiguous.
+    let groupStart = 0;
+    while (groupStart < attempts.length) {
+        let groupEnd = groupStart + 1;
+        while (groupEnd < attempts.length) {
+            const a = attempts[groupStart];
+            const b = attempts[groupEnd];
+            if (a.initialCandidatesCount === b.initialCandidatesCount &&
+                a.minDateDiff === b.minDateDiff &&
+                a.minAmountDiff.equals(b.minAmountDiff) &&
+                a.initialCandidatesCount > 0) {
+                groupEnd++;
+            } else {
+                break;
+            }
+        }
+
+        if (groupEnd - groupStart > 1) {
+            // Check for any overlap within the group
+            let hasAnyOverlap = false;
+            for (let i = groupStart; i < groupEnd; i++) {
+                for (let j = i + 1; j < groupEnd; j++) {
+                    const overlap = attempts[i].candidateIds.some(id => attempts[j].candidateIds.includes(id));
+                    if (overlap) {
+                        hasAnyOverlap = true;
+                        break;
+                    }
+                }
+                if (hasAnyOverlap) break;
+            }
+
+            if (hasAnyOverlap) {
+                for (let i = groupStart; i < groupEnd; i++) {
+                    ambiguousTxnIds.add(attempts[i].bankTxn.txn_id);
+                }
+            }
+        }
+        groupStart = groupEnd;
+    }
+
     let ambiguousFlagged = 0;
     let noCandidateFlagged = 0;
+    let partialPaymentFlagged = 0;
 
-    // 3. Process each attempt in sorted order
-    for (const attempt of attempts) {
+    // 3. Process each attempt
+    for (let i = 0; i < attempts.length; i++) {
+        const attempt = attempts[i];
         const { bankTxn, possibleAccounts } = attempt;
 
-        // Find available CC transactions (not already matched)
+        if (ambiguousTxnIds.has(bankTxn.txn_id)) {
+            reviewUpdates.push({
+                txn_id: bankTxn.txn_id,
+                needs_review: true,
+                add_review_reasons: ['ambiguous_match_candidates'],
+            });
+            ambiguousFlagged++;
+            continue;
+        }
+
         const availableCcTxns = ccTxns.filter(t => !matchedCcTxnIds.has(t.txn_id));
 
-        // Find best match among available
         const { match, reason } = findBestMatch(
             bankTxn,
             availableCcTxns,
             possibleAccounts,
-            config
+            config,
+            ccTxns // Pass ALL for diagnostic preservation
         );
 
         if (match) {
@@ -157,13 +246,21 @@ export function matchPayments(
                 date_diff_days: daysBetween(bankTxn.effective_date, match.effective_date),
             });
             matchedCcTxnIds.add(match.txn_id);
-        } else if (reason === 'no_candidates') {
-            // B-3: Check for 1:N match if no single candidate found
-            // If the sum of ALL potential (available) candidates equals the bank amount,
-            // we treat it as a multi-statement payment.
-            const potCandidates = availableCcTxns.filter(t =>
-                isPotentialCandidate(bankTxn, t, possibleAccounts, config, true)
-            );
+        } else if (reason === 'partial_payment' || reason === 'no_candidates') {
+            // Check for 1:N match
+            // 1:N filtering: only include CC txns that look like payment receipts (not rewards/refunds)
+            const potCandidates = availableCcTxns.filter(t => {
+                const looksLikePayment = patterns.some(p => {
+                    const matchingPatterns = p.accounts.some(accId => possibleAccounts.includes(accId));
+                    if (!matchingPatterns) return false;
+
+                    const desc = normalizeDescription(t.raw_description);
+                    const hasKeyword = p.keywords.some(kw => matchesWithBoundary(desc, kw));
+                    const hasPattern = matchesWithBoundary(desc, p.pattern);
+                    return hasKeyword || hasPattern;
+                });
+                return looksLikePayment && isPotentialCandidate(bankTxn, t, possibleAccounts, config, true);
+            });
 
             if (potCandidates.length >= 2) {
                 const totalPotAmount = potCandidates.reduce(
@@ -177,22 +274,23 @@ export function matchPayments(
                         bank_txn_id: bankTxn.txn_id,
                         cc_txn_ids: potCandidates.map(t => t.txn_id),
                         amount: totalPotAmount.toString(),
-                        // Use max date diff for the set
                         date_diff_days: Math.max(...potCandidates.map(t =>
                             daysBetween(bankTxn.effective_date, t.effective_date)
                         )),
                     });
                     potCandidates.forEach(t => matchedCcTxnIds.add(t.txn_id));
-                    continue; // Success
+                    continue;
                 }
             }
 
+            const isPartial = reason === 'partial_payment' || potCandidates.length > 0;
             reviewUpdates.push({
                 txn_id: bankTxn.txn_id,
                 needs_review: true,
-                add_review_reasons: ['payment_pattern_no_cc_match'],
+                add_review_reasons: [isPartial ? 'partial_payment' : 'payment_pattern_no_cc_match'],
             });
-            noCandidateFlagged++;
+            if (isPartial) partialPaymentFlagged++;
+            else noCandidateFlagged++;
         } else if (reason === 'ambiguous') {
             reviewUpdates.push({
                 txn_id: bankTxn.txn_id,
@@ -208,11 +306,12 @@ export function matchPayments(
         reviewUpdates,
         warnings,
         stats: {
-            total_bank_candidates: attempts.length, // Bank txns that matched a pattern
+            total_bank_candidates: attempts.length,
             total_cc_candidates: ccTxns.length,
             matches_found: matches.length,
             ambiguous_flagged: ambiguousFlagged,
             no_candidate_flagged: noCandidateFlagged,
+            partial_payment_flagged: partialPaymentFlagged,
         },
     };
 }

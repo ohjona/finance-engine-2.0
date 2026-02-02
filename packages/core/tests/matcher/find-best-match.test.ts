@@ -30,21 +30,21 @@ const defaultConfig: MatchConfig = {
 describe('findBestMatch', () => {
     it('returns no_candidates when no CC transactions', () => {
         const bankTxn = makeTxn({ signed_amount: '-100.00', account_id: 1120 });
-        const result = findBestMatch(bankTxn, [], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [], [2122], defaultConfig, []);
         expect(result.match).toBeNull();
         expect(result.reason).toBe('no_candidates');
     });
 
-    it('returns no_candidates when no amount match', () => {
+    it('returns partial_payment when date match but amount mismatch', () => {
         const bankTxn = makeTxn({ signed_amount: '-100.00' });
         const ccTxn = makeTxn({
             signed_amount: '200.00',
             account_id: 2122,
             effective_date: '2026-01-15',
         });
-        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig, [ccTxn]);
         expect(result.match).toBeNull();
-        expect(result.reason).toBe('no_candidates');
+        expect(result.reason).toBe('partial_payment');
     });
 
     it('returns no_candidates when date outside tolerance', () => {
@@ -54,7 +54,7 @@ describe('findBestMatch', () => {
             account_id: 2122,
             effective_date: '2026-01-25', // 10 days away
         });
-        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig, [ccTxn]);
         expect(result.match).toBeNull();
         expect(result.reason).toBe('no_candidates');
     });
@@ -67,7 +67,7 @@ describe('findBestMatch', () => {
             account_id: 2122,
             effective_date: '2026-01-17',
         });
-        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig, [ccTxn]);
         expect(result.match).not.toBeNull();
         expect(result.match!.txn_id).toBe('cc-match');
         expect(result.reason).toBe('found');
@@ -87,7 +87,7 @@ describe('findBestMatch', () => {
             account_id: 2122,
             effective_date: '2026-01-19', // 4 days
         });
-        const result = findBestMatch(bankTxn, [ccTxn1, ccTxn2], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [ccTxn1, ccTxn2], [2122], defaultConfig, [ccTxn1, ccTxn2]);
         expect(result.match).not.toBeNull();
         expect(result.match!.txn_id).toBe('cc-close');
         expect(result.reason).toBe('found');
@@ -107,20 +107,20 @@ describe('findBestMatch', () => {
             account_id: 2122,
             effective_date: '2026-01-17', // 2 days (same)
         });
-        const result = findBestMatch(bankTxn, [ccTxn1, ccTxn2], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [ccTxn1, ccTxn2], [2122], defaultConfig, [ccTxn1, ccTxn2]);
         expect(result.match).toBeNull();
         expect(result.reason).toBe('ambiguous');
     });
 
     it('filters by possible accounts', () => {
         const bankTxn = makeTxn({ signed_amount: '-100.00', effective_date: '2026-01-15' });
-        const ccTxn = makeTxn({
+        const ccTxnWrongAcc = makeTxn({
             signed_amount: '100.00',
             account_id: 2130, // Chase Card
             effective_date: '2026-01-15',
         });
         // Looking for Amex (2122), not Chase (2130)
-        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [ccTxnWrongAcc], [2122], defaultConfig, [ccTxnWrongAcc]);
         expect(result.match).toBeNull();
         expect(result.reason).toBe('no_candidates');
     });
@@ -133,21 +133,21 @@ describe('findBestMatch', () => {
             account_id: 2122,
             effective_date: '2026-01-15',
         });
-        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig, [ccTxn]);
         expect(result.match).not.toBeNull();
         expect(result.reason).toBe('found');
     });
 
-    it('rejects when amount beyond $0.01 tolerance', () => {
+    it('rejects when amount beyond $0.01 tolerance (partial_payment)', () => {
         const bankTxn = makeTxn({ signed_amount: '-100.00', effective_date: '2026-01-15' });
         const ccTxn = makeTxn({
             signed_amount: '100.02', // $0.02 off
             account_id: 2122,
             effective_date: '2026-01-15',
         });
-        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig, [ccTxn]);
         expect(result.match).toBeNull();
-        expect(result.reason).toBe('no_candidates');
+        expect(result.reason).toBe('partial_payment');
     });
 
     it('matches at exactly 5 day tolerance', () => {
@@ -158,7 +158,7 @@ describe('findBestMatch', () => {
             account_id: 2122,
             effective_date: '2026-01-20', // exactly 5 days
         });
-        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [ccTxn], [2122], defaultConfig, [ccTxn]);
         expect(result.match).not.toBeNull();
         expect(result.reason).toBe('found');
     });
@@ -177,7 +177,7 @@ describe('findBestMatch', () => {
             account_id: 2122,
             effective_date: '2026-01-17', // 2 days (same)
         });
-        const result = findBestMatch(bankTxn, [ccTxn1, ccTxn2], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [ccTxn1, ccTxn2], [2122], defaultConfig, [ccTxn1, ccTxn2]);
         expect(result.match).not.toBeNull();
         expect(result.match!.txn_id).toBe('cc-exact');
         expect(result.reason).toBe('found');
@@ -197,8 +197,23 @@ describe('findBestMatch', () => {
             account_id: 2122,
             effective_date: '2026-01-17',
         });
-        const result = findBestMatch(bankTxn, [ccTxn1, ccTxn2], [2122], defaultConfig);
+        const result = findBestMatch(bankTxn, [ccTxn1, ccTxn2], [2122], defaultConfig, [ccTxn1, ccTxn2]);
         expect(result.match).toBeNull();
         expect(result.reason).toBe('ambiguous');
+    });
+
+    it('preserves partial_payment diag even when CC is matched (Round 2 Hardware)', () => {
+        const bankTxn = makeTxn({ signed_amount: '-100.00', effective_date: '2026-01-15' });
+        const ccTxnMatched = makeTxn({
+            signed_amount: '100.02', // partial match
+            account_id: 2122,
+            effective_date: '2026-01-15',
+        });
+
+        // availableCcTxns is empty (because it was matched)
+        // allCcTxns has it.
+        const result = findBestMatch(bankTxn, [], [2122], defaultConfig, [ccTxnMatched]);
+        expect(result.match).toBeNull();
+        expect(result.reason).toBe('partial_payment');
     });
 });

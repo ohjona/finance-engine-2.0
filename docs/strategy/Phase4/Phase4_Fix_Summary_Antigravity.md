@@ -5,37 +5,30 @@
 | Issue | Status | Commit |
 |-------|--------|--------|
 | B-1 | ✅ Fixed | `fix(shared): add RECV keyword to payment patterns (CA-1)` |
-| B-2 | ✅ Fixed | `fix(core): rank bank candidates to solve greedy matching (B-2)` |
-| B-3 | ✅ Fixed | `fix(core): support 1:N payment matching (B-3)` |
-| B-4 | ✅ Fixed | `fix(core): tie-break matched payments by amount delta (B-4)` |
-| B-5 | ✅ Fixed | `fix(core): add word boundary check for short patterns (B-5)` |
-| B-6 | ✅ Fixed | `fix(core): validate match amount in ledger generation (B-6)` |
+| B-2 | ✅ Fixed | `fix(core): multi-way tie handling (3+ bank txns)` |
+| B-3 | ✅ Fixed | `fix(core): restricted 1:N payment matching (payments only)` |
+| B-4 | ✅ Fixed | `fix(core): tie-break matched payments by amount delta` |
+| B-5 | ✅ Fixed | `fix(core): add word boundary and regex escape for patterns` |
+| B-6 | ✅ Fixed | `fix(core): validate match amount in ledger generation` |
+| B-Diag | ✅ Fixed | `fix(core): preserve partial_payment diagnostics across matched txns` |
 
-## Fixes Applied
+## Fixes Applied (Round 2 Hardening)
 
-### B-1: Missing RECV Keyword
+### Multi-Way Tie Handling (B-2 refined)
+- **Fix**: Implemented grouping of tied bank transactions. All overlapping transactions in a perfect tie group are flagged as ambiguous.
 
-**Issue:** `DEFAULT_PAYMENT_PATTERNS` keywords lack "RECV" per IK D6.5 requirement.
-**Fix:** Added `'RECV'` to all default payment pattern keyword arrays in `packages/shared/src/constants.ts`.
-**Files changed:**
-- `packages/shared/src/constants.ts` — Updated `DEFAULT_PAYMENT_PATTERNS`.
-- `packages/core/tests/matcher/match-payments.test.ts` — Added verification test.
+### Restricted 1:N Matching (B-3 hardened)
+- **Fix**: Filtered 1:N candidates to require payment keywords or pattern matches in descriptions, preventing misclassification of rewards/refunds.
 
-**Manual verification:** Verified via integration and unit tests that transactions with "RECV" in description are correctly identified as payment candidates.
-
-**Commit:** `fix(shared): add RECV keyword to payment patterns (CA-1)`
+### Diagnostic Preservation (IK D6.4 hardened)
+- **Fix**: `findBestMatch` now checks the full transaction set for non-match reasons, ensuring `partial_payment` is reported even if the target CC transaction was matched elsewhere.
 
 ---
-
-## Issues Deferred
-
-| Issue | Reason for Deferral |
-|-------|---------------------|
-| | |
 
 ## Verification
 
 ```bash
-pnpm test
-pnpm build
+pnpm test --filter @finance-engine/core
 ```
+
+**Result**: 210 tests passed.

@@ -385,13 +385,15 @@ describe('matchPayments', () => {
             txn_id: 'cc-1',
             signed_amount: '600.00',
             account_id: 2122,
-            effective_date: '2026-01-15'
+            effective_date: '2026-01-15',
+            raw_description: 'PAYMENT RECEIVED AMEX'
         });
         const cc2 = makeTxn({
             txn_id: 'cc-2',
             signed_amount: '400.00',
             account_id: 2122,
-            effective_date: '2026-01-15'
+            effective_date: '2026-01-15',
+            raw_description: 'PAYMENT RECEIVED AMEX'
         });
 
         const result = matchPayments([bankTxn, cc1, cc2], {
@@ -405,5 +407,125 @@ describe('matchPayments', () => {
         expect(result.matches[0].cc_txn_ids).toContain('cc-1');
         expect(result.matches[0].cc_txn_ids).toContain('cc-2');
         expect(result.matches[0].amount).toBe('1000');
+    });
+
+    it('handles greedy ties deterministically (Option B)', () => {
+        // Two identical bank txns, two identical CC candidates
+        // Both bank txns have 2 initial candidates, min date diff 0, min amount diff 0.
+        const bank1 = makeTxn({ txn_id: 'bank-1', effective_date: '2026-01-15', raw_description: 'PAYMENT AMEX' });
+        const bank2 = makeTxn({ txn_id: 'bank-2', effective_date: '2026-01-15', raw_description: 'PAYMENT AMEX' });
+
+        const cc1 = makeTxn({ txn_id: 'cc-1', effective_date: '2026-01-15', account_id: 2122, signed_amount: '100.00' });
+        const cc2 = makeTxn({ txn_id: 'cc-2', effective_date: '2026-01-15', account_id: 2122, signed_amount: '100.00' });
+
+        const result = matchPayments([bank1, bank2, cc1, cc2], {
+            patterns: [{ keywords: ['PAYMENT'], pattern: 'AMEX', accounts: [2122] }],
+            bankAccountIds: [1120],
+            ccAccountIds: [2122]
+        });
+
+        // Since they are perfect ties, they should be flagged as ambiguous
+        expect(result.stats.ambiguous_flagged).toBe(2);
+        expect(result.matches).toHaveLength(0);
+    });
+
+    it('escapes regex metacharacters in patterns', () => {
+        const bank1 = makeTxn({ raw_description: 'AMEX PLUS+', signed_amount: '-100.00' });
+        const cc1 = makeTxn({ signed_amount: '100.00', account_id: 2122 });
+
+        // '+' is a regex meta-char. If unescaped, 'PLUS+' might match 'PLUSSS'
+        const result = matchPayments([bank1, cc1], {
+            patterns: [{ keywords: ['PLUS+'], pattern: 'AMEX', accounts: [2122] }],
+            bankAccountIds: [1120],
+            ccAccountIds: [2122]
+        });
+
+        expect(result.matches).toHaveLength(1);
+
+        const bank2 = makeTxn({ raw_description: 'AMEX PLUSSS', signed_amount: '-100.00' });
+        const result2 = matchPayments([bank2, cc1], {
+            patterns: [{ keywords: ['PLUS+'], pattern: 'AMEX', accounts: [2122] }],
+            bankAccountIds: [1120],
+            ccAccountIds: [2122]
+        });
+
+        expect(result2.matches).toHaveLength(0);
+    });
+
+    describe('Codex Round 2 Hardening', () => {
+        it('handles 3-way ties (Multi-way Tie Handling)', () => {
+            // 3 identical bank txns, 2 identical CC candidates.
+            // All should be flagged as ambiguous.
+            const bank1 = makeTxn({ txn_id: 'bank-1', effective_date: '2026-01-15', raw_description: 'PAYMENT AMEX' });
+            const bank2 = makeTxn({ txn_id: 'bank-2', effective_date: '2026-01-15', raw_description: 'PAYMENT AMEX' });
+            const bank3 = makeTxn({ txn_id: 'bank-3', effective_date: '2026-01-15', raw_description: 'PAYMENT AMEX' });
+
+            const cc1 = makeTxn({ txn_id: 'cc-1', effective_date: '2026-01-15', account_id: 2122, signed_amount: '100.00' });
+            const cc2 = makeTxn({ txn_id: 'cc-2', effective_date: '2026-01-15', account_id: 2122, signed_amount: '100.00' });
+
+            const result = matchPayments([bank1, bank2, bank3, cc1, cc2], {
+                patterns: [{ keywords: ['PAYMENT'], pattern: 'AMEX', accounts: [2122] }],
+                bankAccountIds: [1120],
+                ccAccountIds: [2122]
+            });
+
+            expect(result.stats.ambiguous_flagged).toBe(3);
+            expect(result.matches).toHaveLength(0);
+        });
+
+        it('rejects unrelated positives in 1:N matching (e.g. rewards/refunds)', () => {
+            // bank: PAYMENT AMEX -1000
+            // cc: +600 (REWARD), +400 (REFUND) -> sum=1000
+            const bank = makeTxn({ raw_description: 'PAYMENT AMEX', signed_amount: '-1000.00' });
+            const reward = makeTxn({ raw_description: 'CASHBACK REWARD', signed_amount: '600.00', account_id: 2122 });
+            const refund = makeTxn({ raw_description: 'REFUND TACO BELL', signed_amount: '400.00', account_id: 2122 });
+
+            const result = matchPayments([bank, reward, refund], {
+                patterns: [{ keywords: ['PAYMENT'], pattern: 'AMEX', accounts: [2122] }],
+                bankAccountIds: [1120],
+                ccAccountIds: [2122]
+            });
+
+            expect(result.matches).toHaveLength(0);
+            expect(result.reviewUpdates[0].add_review_reasons).toContain('partial_payment');
+        });
+
+        it('allows real multi-payment in 1:N matching', () => {
+            // bank: PAYMENT AMEX -1000
+            // cc: +600 "PAYMENT RECEIVED AMEX", +400 "PAYMENT RECEIVED AMEX"
+            const bank = makeTxn({ raw_description: 'PAYMENT AMEX', signed_amount: '-1000.00' });
+            const cc1 = makeTxn({ raw_description: 'PAYMENT RECEIVED AMEX', signed_amount: '600.00', account_id: 2122 });
+            const cc2 = makeTxn({ raw_description: 'PAYMENT RECEIVED AMEX', signed_amount: '400.00', account_id: 2122 });
+
+            const result = matchPayments([bank, cc1, cc2], {
+                patterns: [{ keywords: ['PAYMENT'], pattern: 'AMEX', accounts: [2122] }],
+                bankAccountIds: [1120],
+                ccAccountIds: [2122]
+            });
+
+            expect(result.matches).toHaveLength(1);
+            expect(result.matches[0].cc_txn_ids).toHaveLength(2);
+        });
+
+        it('preserves partial_payment diagnostic even if CC matched to other bank txn', () => {
+            // bank1 matches cc1 (exact)
+            // bank2 is a partial match to cc1
+            // bank2 should get 'partial_payment' reason, not 'no_candidates'
+            const bank1 = makeTxn({ txn_id: 'bank-1', signed_amount: '-100.00', effective_date: '2026-01-15', raw_description: 'PAYMENT AMEX' });
+            const bank2 = makeTxn({ txn_id: 'bank-2', signed_amount: '-200.00', effective_date: '2026-01-15', raw_description: 'PAYMENT AMEX' });
+            const cc1 = makeTxn({ txn_id: 'cc-1', signed_amount: '100.00', effective_date: '2026-01-15', account_id: 2122, raw_description: 'PAYMENT RECEIVED' });
+
+            const result = matchPayments([bank1, bank2, cc1], {
+                patterns: [{ keywords: ['PAYMENT'], pattern: 'AMEX', accounts: [2122] }],
+                bankAccountIds: [1120],
+                ccAccountIds: [2122]
+            });
+
+            expect(result.matches).toHaveLength(1);
+            expect(result.matches[0].bank_txn_id).toBe('bank-1');
+
+            const bank2Update = result.reviewUpdates.find(u => u.txn_id === 'bank-2');
+            expect(bank2Update?.add_review_reasons).toContain('partial_payment');
+        });
     });
 });

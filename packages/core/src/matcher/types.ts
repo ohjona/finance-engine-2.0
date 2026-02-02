@@ -25,5 +25,5 @@ export interface MatchCandidate {
  */
 export interface BestMatchResult {
     match: Transaction | null;
-    reason: 'found' | 'no_candidates' | 'ambiguous';
+    reason: 'found' | 'no_candidates' | 'ambiguous' | 'partial_payment';
 }

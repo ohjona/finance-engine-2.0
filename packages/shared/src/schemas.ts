@@ -256,6 +256,7 @@ export const MatchStatsSchema = z.object({
     matches_found: z.number().int().min(0),
     ambiguous_flagged: z.number().int().min(0),
     no_candidate_flagged: z.number().int().min(0),
+    partial_payment_flagged: z.number().int().min(0).optional(),
 });
 
 export type MatchStats = z.infer<typeof MatchStatsSchema>;

@@ -35,9 +35,10 @@ export function isPotentialCandidate(
 
 export function findBestMatch(
     bankTxn: Transaction,
-    ccTxns: Transaction[],
+    ccTxns: Transaction[], // Available transactions for matching
     possibleAccounts: number[],
-    config: MatchConfig
+    config: MatchConfig,
+    allCcTxns: Transaction[] // All transactions for diagnostics (IK D6.4)
 ): BestMatchResult {
     const bankAmount = new Decimal(bankTxn.signed_amount).abs();
     const candidates: MatchCandidate[] = [];
@@ -51,9 +52,14 @@ export function findBestMatch(
         candidates.push({ txn: ccTxn, dateDiff, amountDiff });
     }
 
-    // No candidates found
+    // No candidates found among AVAILABLE
     if (candidates.length === 0) {
-        return { match: null, reason: 'no_candidates' };
+        // Distinguish between no candidates at all vs. partial payment (IK D6.4)
+        // Check ALL transactions (including already matched) for the diagnostic reason.
+        const hasDateMatch = allCcTxns.some(ccTxn =>
+            isPotentialCandidate(bankTxn, ccTxn, possibleAccounts, config, true)
+        );
+        return { match: null, reason: hasDateMatch ? 'partial_payment' : 'no_candidates' };
     }
 
     // Single candidate — return it
