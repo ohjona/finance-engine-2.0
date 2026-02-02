@@ -14,9 +14,8 @@ export const deduplicateTransactions: PipelineStep = async (state) => {
 
     // We process each file's parse results in order (sorted by filename in Step 2).
     // This ensures deterministic collision suffix assignment (-02, -03).
-    for (let i = 0; i < state.files.length; i++) {
-        const file = state.files[i];
-        const result = state.parseResults[i];
+    for (const file of state.files) {
+        const result = state.parseResults[file.filename];
 
         if (!result) {
             continue;
@@ -39,6 +38,7 @@ export const deduplicateTransactions: PipelineStep = async (state) => {
     }
 
     state.transactions = unique;
+    state.statistics.duplicateCount = duplicatesRemoved;
 
     if (duplicatesRemoved > 0) {
         state.warnings.push(`${duplicatesRemoved} duplicate transactions removed across files.`);

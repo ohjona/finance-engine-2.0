@@ -22,6 +22,8 @@ export const matchTransactions: PipelineStep = async (state) => {
         }
     }
 
+    state.statistics.matchedPairCount = result.matches.length;
+
     // Forward warnings
     for (const warning of result.warnings) {
         state.warnings.push(warning);

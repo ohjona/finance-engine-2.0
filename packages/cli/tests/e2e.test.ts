@@ -54,7 +54,13 @@ describe('E2E Pipeline Integration', () => {
         vi.spyOn(fsPromises, 'rename').mockResolvedValue(undefined);
 
         const options = { dryRun: true, force: false, yes: true, llm: false };
-        const state = await runPipeline(month, workspace, options);
+        const accounts = {
+            accounts: {
+                "1234": { name: "Chase Checking", type: "asset" as const },
+                "101": { name: "Groceries", type: "expense" as const }
+            }
+        };
+        const state = await runPipeline(month, workspace, accounts, options);
 
         expect(state.errors.filter(e => e.fatal)).toHaveLength(0);
         expect(state.transactions).toHaveLength(1);

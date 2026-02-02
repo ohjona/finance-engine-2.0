@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { detectParser } from '@finance-engine/core';
 import type { PipelineStep } from '../types.js';
+import { promptContinue } from '../../utils/prompt.js';
 
 /**
  * Step 3: Parsing
@@ -29,7 +30,7 @@ export const parseFiles: PipelineStep = async (state) => {
             // Parser returns ParseResult: { transactions: Transaction[], skippedRows: number, warnings: string[] }
             const result = detection.parser(arrayBuffer, detection.accountId, file.filename);
 
-            state.parseResults.push(result);
+            state.parseResults[file.filename] = result;
             state.transactions.push(...result.transactions);
 
             // Forward parser warnings to pipeline state
@@ -40,8 +41,31 @@ export const parseFiles: PipelineStep = async (state) => {
             state.errors.push({
                 step: 'parse',
                 message: `Failed to parse ${file.filename}: ${(err as Error).message}`,
-                fatal: false, // Maybe we can continue if other files are okay?
+                fatal: false, // Non-fatal by default, but subject to prompt below
                 error: err
+            });
+        }
+    }
+
+    // Populate statistics for reconciliation
+    state.statistics.rawTransactionCount = Object.values(state.parseResults).reduce(
+        (acc, res) => acc + res.transactions.length,
+        0
+    );
+
+    // D8.4 / D8.5: After parsing, if any errors, call promptContinue (unless --yes/non-TTY)
+    if (state.errors.some(e => e.step === 'parse')) {
+        const errorCount = state.errors.filter(e => e.step === 'parse').length;
+        const shouldContinue = await promptContinue(
+            `\n⚠️  ${errorCount} file(s) failed to parse. Some data will be missing.`,
+            state.options
+        );
+
+        if (!shouldContinue) {
+            state.errors.push({
+                step: 'parse',
+                message: 'Aborted by user after parse errors.',
+                fatal: true
             });
         }
     }

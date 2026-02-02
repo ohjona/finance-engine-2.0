@@ -18,12 +18,18 @@ describe('Pipeline Step: Detection & Parsing', () => {
         initialState = {
             month,
             workspace,
+            accounts: { accounts: {} } as any,
             options: { dryRun: false, force: false, yes: true, llm: false },
             files: [],
-            parseResults: [],
+            parseResults: {},
             transactions: [],
             errors: [],
-            warnings: []
+            warnings: [],
+            statistics: {
+                rawTransactionCount: 0,
+                duplicateCount: 0,
+                matchedPairCount: 0
+            }
         };
         vi.clearAllMocks();
     });

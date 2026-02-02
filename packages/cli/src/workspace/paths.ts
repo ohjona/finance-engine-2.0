@@ -1,5 +1,6 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 import type { Workspace } from '../types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -8,9 +9,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * Constructs a Workspace object from a root path.
  */
 export function resolveWorkspace(root: string): Workspace {
-    // shared-rules.yaml is bundled with the CLI package.
-    // Assuming it's in a 'assets' or 'dist/assets' folder relative to the build.
-    // For now, we'll try to find it relative to this file.
     const sharedRulesPath = resolveSharedRulesPath();
 
     return {
@@ -28,10 +26,17 @@ export function resolveWorkspace(root: string): Workspace {
 }
 
 function resolveSharedRulesPath(): string {
-    // In dev, it might be in ../../assets/shared-rules.yaml
-    // In prod, it should be relative to the package root.
-    // For now, we'll look for it in a reasonable place.
-    return join(__dirname, '..', '..', 'assets', 'shared-rules.yaml');
+    // In dev: packages/cli/src/workspace/paths.ts -> __dirname = packages/cli/src/workspace
+    // In dist: packages/cli/dist/workspace/paths.js -> __dirname = packages/cli/dist/workspace
+    const pkgRoot = join(__dirname, '..', '..');
+    const path = join(pkgRoot, 'assets', 'shared-rules.yaml');
+
+    if (!existsSync(path)) {
+        console.warn(`\n⚠️  Warning: Shared rules not found at ${path}`);
+        console.warn('Proceeding without shared rules.\n');
+    }
+
+    return path;
 }
 
 export function getImportsPath(workspace: Workspace, month: string): string {

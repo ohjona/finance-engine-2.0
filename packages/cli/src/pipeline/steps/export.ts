@@ -28,10 +28,10 @@ export const exportResults: PipelineStep = async (state) => {
             await journalWb.xlsx.writeFile(join(outputPath, 'journal.xlsx'));
         }
 
-        const reviewWb = await generateReviewExcel(state.transactions);
+        const reviewWb = await generateReviewExcel(state.transactions, state.accounts);
         await reviewWb.xlsx.writeFile(join(outputPath, 'review.xlsx'));
 
-        const analysisWb = await generateAnalysisExcel(state.transactions);
+        const analysisWb = await generateAnalysisExcel(state.transactions, state.accounts);
         await analysisWb.xlsx.writeFile(join(outputPath, 'analysis.xlsx'));
 
         // 2. Export Run Manifest

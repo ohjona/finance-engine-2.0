@@ -64,4 +64,34 @@ rules:
         const updatedContent = await fs.readFile(TEMP_RULES_FILE, 'utf8');
         expect(updatedContent).toContain('pattern: new');
     });
+
+    it('should append to top-level sequence and preserve formatting', async () => {
+        const initialContent = `# comment A
+- pattern: "ONE"
+  category_id: 100
+# comment B
+- pattern: "TWO"
+  category_id: 200
+`;
+        await fs.writeFile(TEMP_RULES_FILE, initialContent, 'utf8');
+
+        const newRule = {
+            pattern: "THREE",
+            category_id: 300,
+            added_date: "2026-02-02"
+        };
+
+        await appendRuleToYaml(TEMP_RULES_FILE, newRule);
+
+        const updatedContent = await fs.readFile(TEMP_RULES_FILE, 'utf8');
+
+        expect(updatedContent).toContain('# comment A');
+        expect(updatedContent).toContain('# comment B');
+        expect(updatedContent).toContain('pattern: "ONE"');
+        expect(updatedContent).toContain('pattern: "TWO"');
+        expect(updatedContent).toContain('pattern: THREE');
+
+        const doc = parseDocument(updatedContent);
+        expect((doc.contents as any).toJSON()).toHaveLength(3);
+    });
 });

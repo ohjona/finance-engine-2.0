@@ -1,11 +1,12 @@
-import { mkdir, copyFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { mkdir, copyFile, rename, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { PipelineStep } from '../types.js';
 import { getArchivePath } from '../../workspace/paths.js';
 
 /**
  * Step 10: Archiving
- * Copies raw input files to the archive directory for historical preservation.
+ * Moves raw input files to the archive directory for historical preservation.
+ * Per PRD §11.5 / IK D8.3: Must move, not copy.
  */
 export const archiveRawFiles: PipelineStep = async (state) => {
     if (state.options.dryRun) {
@@ -26,7 +27,19 @@ export const archiveRawFiles: PipelineStep = async (state) => {
 
         for (const file of state.files) {
             const dest = join(archivePath, file.filename);
-            await copyFile(file.path, dest);
+
+            try {
+                // Attempt atomic move (atomic rename)
+                await rename(file.path, dest);
+            } catch (err: any) {
+                // Fallback for cross-device move (EXDEV)
+                if (err.code === 'EXDEV') {
+                    await copyFile(file.path, dest);
+                    await unlink(file.path);
+                } else {
+                    throw err;
+                }
+            }
         }
     } catch (err) {
         state.errors.push({

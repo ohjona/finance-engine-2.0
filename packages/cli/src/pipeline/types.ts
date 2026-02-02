@@ -3,6 +3,7 @@ import type {
     ParseResult,
     MatchResult,
     LedgerResult,
+    ChartOfAccounts,
 } from '@finance-engine/shared';
 import type { CategorizationStats } from '@finance-engine/core';
 import type { Workspace, ProcessOptions } from '../types.js';
@@ -35,11 +36,12 @@ export interface PipelineError {
 export interface PipelineState {
     month: string;
     workspace: Workspace;
+    accounts: ChartOfAccounts;
     options: ProcessOptions;
 
     // Accumulated during pipeline execution
     files: InputFile[];
-    parseResults: ParseResult[];
+    parseResults: Record<string, ParseResult>;
     transactions: Transaction[];
     categorizationStats?: CategorizationStats;
     matchResult?: MatchResult;
@@ -47,6 +49,12 @@ export interface PipelineState {
 
     warnings: string[];
     errors: PipelineError[];
+
+    statistics: {
+        rawTransactionCount: number;
+        duplicateCount: number;
+        matchedPairCount: number;
+    };
 }
 
 /**

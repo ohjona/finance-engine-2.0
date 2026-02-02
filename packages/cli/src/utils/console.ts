@@ -11,7 +11,15 @@ export function success(message: string): void {
 }
 
 export function warn(message: string): void {
-    console.warn(`⚠ ${message}`);
+    console.warn(`⚠️  ${message}`);
+}
+
+export function warning(message: string): void {
+    warn(message);
+}
+
+export function info(message: string): void {
+    console.info(`ℹ ${message}`);
 }
 
 export function arrow(message: string): void {

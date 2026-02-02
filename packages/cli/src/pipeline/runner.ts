@@ -10,6 +10,7 @@ import { validateFinal } from './steps/validate.js';
 import { exportResults } from './steps/export.js';
 import { archiveRawFiles } from './steps/archive.js';
 import type { Workspace, ProcessOptions } from '../types.js';
+import type { ChartOfAccounts } from '@finance-engine/shared';
 
 /**
  * Orchestrates the execution of the processing pipeline.
@@ -18,17 +19,24 @@ import type { Workspace, ProcessOptions } from '../types.js';
 export async function runPipeline(
     month: string,
     workspace: Workspace,
+    accounts: ChartOfAccounts,
     options: ProcessOptions
 ): Promise<PipelineState> {
     let state: PipelineState = {
         month,
         workspace,
+        accounts,
         options,
         files: [],
-        parseResults: [],
+        parseResults: {}, // B-1: Initialized as object
         transactions: [],
         warnings: [],
-        errors: []
+        errors: [],
+        statistics: {
+            rawTransactionCount: 0,
+            duplicateCount: 0,
+            matchedPairCount: 0
+        }
     };
 
     const steps: { name: string; fn: PipelineStep }[] = [
