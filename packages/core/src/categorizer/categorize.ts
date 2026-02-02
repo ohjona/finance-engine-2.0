@@ -171,7 +171,7 @@ export function categorizeAll(
         }
 
         // Update stats
-        stats.bySource[result.source]++;
+        stats.bySource[result.source as keyof typeof stats.bySource]++;
         if (result.needs_review) {
             stats.needsReview++;
         }

@@ -13,6 +13,16 @@ export {
     CategorizationOutputSchema,
     PatternValidationResultSchema,
     CollisionResultSchema,
+    PaymentPatternSchema,
+    MatchSchema,
+    ReviewUpdateSchema,
+    MatchStatsSchema,
+    MatchResultSchema,
+    MatchConfigSchema,
+    AccountInfoSchema,
+    JournalValidationResultSchema,
+    LedgerStatsSchema,
+    LedgerResultSchema,
 } from './schemas.js';
 
 // Types
@@ -30,6 +40,16 @@ export type {
     CategorizationOutput,
     PatternValidationResult,
     CollisionResult,
+    PaymentPattern,
+    Match,
+    ReviewUpdate,
+    MatchStats,
+    MatchResult,
+    MatchConfig,
+    AccountInfo,
+    JournalValidationResult,
+    LedgerStats,
+    LedgerResult,
 } from './schemas.js';
 
 // Constants
@@ -39,4 +59,6 @@ export {
     PATTERN_VALIDATION,
     MATCHING_CONFIG,
     TXN_ID,
+    DEFAULT_PAYMENT_PATTERNS,
+    ACCOUNT_RANGES,
 } from './constants.js';

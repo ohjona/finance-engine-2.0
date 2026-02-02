@@ -1,0 +1,270 @@
+import { describe, it, expect } from 'vitest';
+import { matchPayments } from '../../src/matcher/match-payments.js';
+import type { Transaction, PaymentPattern } from '@finance-engine/shared';
+
+// Helper to create minimal Transaction
+function makeTxn(overrides: Partial<Transaction>): Transaction {
+    return {
+        txn_id: 'txn-' + Math.random().toString(16).slice(2, 10),
+        txn_date: '2026-01-15',
+        post_date: '2026-01-15',
+        effective_date: '2026-01-15',
+        description: 'Test Transaction',
+        raw_description: 'TEST TRANSACTION',
+        signed_amount: '-100.00',
+        account_id: 1120,
+        category_id: 4999,
+        source_file: 'test.csv',
+        confidence: 0.3,
+        needs_review: false,
+        review_reasons: [],
+        ...overrides,
+    };
+}
+
+const testPatterns: PaymentPattern[] = [
+    { keywords: ['PAYMENT', 'AUTOPAY'], pattern: 'AMEX', accounts: [2122] },
+    { keywords: ['PAYMENT'], pattern: 'CHASE CARD', accounts: [2130] },
+];
+
+describe('matchPayments', () => {
+    describe('IK D6.5 - Keyword Requirement', () => {
+        it('requires both keyword AND pattern to match', () => {
+            const bankTxn = makeTxn({
+                txn_id: 'bank-1',
+                raw_description: 'AMEX PAYMENT',
+                signed_amount: '-500.00',
+                account_id: 1120,
+            });
+            const ccTxn = makeTxn({
+                txn_id: 'cc-1',
+                raw_description: 'PAYMENT RECEIVED',
+                signed_amount: '500.00',
+                account_id: 2122,
+            });
+
+            const result = matchPayments([bankTxn, ccTxn], {
+                patterns: testPatterns,
+                bankAccountIds: [1120],
+                ccAccountIds: [2122],
+            });
+
+            expect(result.matches).toHaveLength(1);
+            expect(result.matches[0].bank_txn_id).toBe('bank-1');
+            expect(result.matches[0].cc_txn_id).toBe('cc-1');
+        });
+
+        it('rejects match with pattern but no keyword', () => {
+            const bankTxn = makeTxn({
+                txn_id: 'bank-1',
+                raw_description: 'AMEX CARD SERVICES', // No PAYMENT keyword
+                signed_amount: '-500.00',
+                account_id: 1120,
+            });
+            const ccTxn = makeTxn({
+                signed_amount: '500.00',
+                account_id: 2122,
+            });
+
+            const result = matchPayments([bankTxn, ccTxn], {
+                patterns: testPatterns,
+                bankAccountIds: [1120],
+                ccAccountIds: [2122],
+            });
+
+            expect(result.matches).toHaveLength(0);
+        });
+
+        it('rejects match with keyword but no pattern', () => {
+            const bankTxn = makeTxn({
+                raw_description: 'CREDIT CARD PAYMENT', // No AMEX
+                signed_amount: '-500.00',
+                account_id: 1120,
+            });
+            const ccTxn = makeTxn({
+                signed_amount: '500.00',
+                account_id: 2122,
+            });
+
+            const result = matchPayments([bankTxn, ccTxn], {
+                patterns: testPatterns,
+                bankAccountIds: [1120],
+                ccAccountIds: [2122],
+            });
+
+            expect(result.matches).toHaveLength(0);
+        });
+    });
+
+    describe('IK D6.6 - No Candidate Visibility', () => {
+        it('flags when pattern matches but no CC candidate exists', () => {
+            const bankTxn = makeTxn({
+                txn_id: 'bank-1',
+                raw_description: 'AMEX AUTOPAY',
+                signed_amount: '-500.00',
+                account_id: 1120,
+            });
+            // No CC transactions
+
+            const result = matchPayments([bankTxn], {
+                patterns: testPatterns,
+                bankAccountIds: [1120],
+                ccAccountIds: [2122],
+            });
+
+            expect(result.matches).toHaveLength(0);
+            expect(result.reviewUpdates).toHaveLength(1);
+            expect(result.reviewUpdates[0].txn_id).toBe('bank-1');
+            expect(result.reviewUpdates[0].add_review_reasons).toContain('payment_pattern_no_cc_match');
+        });
+    });
+
+    describe('IK D6.3 - Ambiguous Resolution', () => {
+        it('flags for review when multiple candidates with same date distance', () => {
+            const bankTxn = makeTxn({
+                txn_id: 'bank-1',
+                raw_description: 'AMEX PAYMENT',
+                signed_amount: '-500.00',
+                account_id: 1120,
+                effective_date: '2026-01-15',
+            });
+            const ccTxn1 = makeTxn({
+                signed_amount: '500.00',
+                account_id: 2122,
+                effective_date: '2026-01-17', // 2 days
+            });
+            const ccTxn2 = makeTxn({
+                signed_amount: '500.00',
+                account_id: 2122,
+                effective_date: '2026-01-17', // 2 days (same)
+            });
+
+            const result = matchPayments([bankTxn, ccTxn1, ccTxn2], {
+                patterns: testPatterns,
+                bankAccountIds: [1120],
+                ccAccountIds: [2122],
+            });
+
+            expect(result.matches).toHaveLength(0);
+            expect(result.reviewUpdates).toHaveLength(1);
+            expect(result.reviewUpdates[0].add_review_reasons).toContain('ambiguous_match_candidates');
+            expect(result.stats.ambiguous_flagged).toBe(1);
+        });
+    });
+
+    describe('IK D6.9 - Zero Amount', () => {
+        it('skips zero-amount transactions', () => {
+            const bankTxn = makeTxn({
+                raw_description: 'AMEX PAYMENT',
+                signed_amount: '0.00', // Zero
+                account_id: 1120,
+            });
+            const ccTxn = makeTxn({
+                signed_amount: '0.00',
+                account_id: 2122,
+            });
+
+            const result = matchPayments([bankTxn, ccTxn], {
+                patterns: testPatterns,
+                bankAccountIds: [1120],
+                ccAccountIds: [2122],
+            });
+
+            expect(result.matches).toHaveLength(0);
+            expect(result.reviewUpdates).toHaveLength(0);
+        });
+    });
+
+    describe('Pure Function Behavior', () => {
+        it('does not mutate input transactions', () => {
+            const bankTxn = makeTxn({
+                raw_description: 'AMEX PAYMENT',
+                signed_amount: '-500.00',
+                account_id: 1120,
+                needs_review: false,
+                review_reasons: [],
+            });
+            const originalNeedsReview = bankTxn.needs_review;
+            const originalReasons = [...bankTxn.review_reasons];
+
+            // No CC transactions - will trigger no_candidate flag
+            matchPayments([bankTxn], {
+                patterns: testPatterns,
+                bankAccountIds: [1120],
+                ccAccountIds: [2122],
+            });
+
+            // Original should be unchanged
+            expect(bankTxn.needs_review).toBe(originalNeedsReview);
+            expect(bankTxn.review_reasons).toEqual(originalReasons);
+        });
+    });
+
+    describe('Multiple Patterns', () => {
+        it('matches different CC payments to correct patterns', () => {
+            const amexBankTxn = makeTxn({
+                txn_id: 'bank-amex',
+                raw_description: 'AMEX AUTOPAY',
+                signed_amount: '-500.00',
+                account_id: 1120,
+            });
+            const chaseBankTxn = makeTxn({
+                txn_id: 'bank-chase',
+                raw_description: 'CHASE CARD PAYMENT',
+                signed_amount: '-300.00',
+                account_id: 1120,
+            });
+            const amexCcTxn = makeTxn({
+                txn_id: 'cc-amex',
+                signed_amount: '500.00',
+                account_id: 2122,
+            });
+            const chaseCcTxn = makeTxn({
+                txn_id: 'cc-chase',
+                signed_amount: '300.00',
+                account_id: 2130,
+            });
+
+            const result = matchPayments(
+                [amexBankTxn, chaseBankTxn, amexCcTxn, chaseCcTxn],
+                {
+                    patterns: testPatterns,
+                    bankAccountIds: [1120],
+                    ccAccountIds: [2122, 2130],
+                }
+            );
+
+            expect(result.matches).toHaveLength(2);
+
+            const amexMatch = result.matches.find(m => m.bank_txn_id === 'bank-amex');
+            expect(amexMatch?.cc_txn_id).toBe('cc-amex');
+
+            const chaseMatch = result.matches.find(m => m.bank_txn_id === 'bank-chase');
+            expect(chaseMatch?.cc_txn_id).toBe('cc-chase');
+        });
+    });
+
+    describe('Statistics', () => {
+        it('reports correct stats', () => {
+            const bankTxn = makeTxn({
+                raw_description: 'AMEX PAYMENT',
+                signed_amount: '-500.00',
+                account_id: 1120,
+            });
+            const ccTxn = makeTxn({
+                signed_amount: '500.00',
+                account_id: 2122,
+            });
+
+            const result = matchPayments([bankTxn, ccTxn], {
+                patterns: testPatterns,
+                bankAccountIds: [1120],
+                ccAccountIds: [2122],
+            });
+
+            expect(result.stats.total_bank_candidates).toBe(1);
+            expect(result.stats.total_cc_candidates).toBe(1);
+            expect(result.stats.matches_found).toBe(1);
+        });
+    });
+});
