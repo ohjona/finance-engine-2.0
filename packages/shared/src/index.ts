@@ -10,6 +10,9 @@ export {
     JournalEntrySchema,
     RunManifestSchema,
     ParseResultSchema,
+    CategorizationOutputSchema,
+    PatternValidationResultSchema,
+    CollisionResultSchema,
 } from './schemas.js';
 
 // Types
@@ -24,6 +27,9 @@ export type {
     JournalEntry,
     RunManifest,
     ParseResult,
+    CategorizationOutput,
+    PatternValidationResult,
+    CollisionResult,
 } from './schemas.js';
 
 // Constants
