@@ -1,10 +1,11 @@
-import { Workbook, type Worksheet } from 'exceljs';
+import exceljs from 'exceljs';
+import type { Worksheet, Workbook } from 'exceljs';
 
 /**
  * Creates a new workbook with standard metadata.
  */
 export function createWorkbook(): Workbook {
-    const workbook = new Workbook();
+    const workbook = new exceljs.Workbook();
     workbook.creator = 'Finance Engine';
     workbook.created = new Date();
     return workbook;
