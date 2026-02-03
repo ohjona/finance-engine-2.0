@@ -52,7 +52,7 @@ export function parseChaseChecking(data: ArrayBuffer, accountId: number, sourceF
 
     // Header validation (rows are already cleaned)
     const firstRow = rows[0];
-    const requiredColumns = ['Posting Date', 'Description', 'Amount'];
+    const requiredColumns = CHASE_CHECKING_EXPECTED_COLUMNS;
     const missingColumns = requiredColumns.filter((col) => !(col in firstRow));
 
     if (missingColumns.length > 0) {

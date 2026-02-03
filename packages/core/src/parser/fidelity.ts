@@ -48,7 +48,7 @@ export function parseFidelity(data: ArrayBuffer, accountId: number, sourceFile: 
 
     // Header validation (rows are already cleaned)
     const firstRow = rows[0];
-    const requiredColumns = ['Date', 'Name', 'Amount'];
+    const requiredColumns = FIDELITY_EXPECTED_COLUMNS;
     const missingColumns = requiredColumns.filter((col) => !(col in firstRow));
 
     if (missingColumns.length > 0) {

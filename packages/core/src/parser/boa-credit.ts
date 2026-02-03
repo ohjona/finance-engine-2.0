@@ -47,7 +47,7 @@ export function parseBoaCredit(data: ArrayBuffer, accountId: number, sourceFile:
 
     // Header validation (rows are already cleaned)
     const firstRow = rows[0];
-    const requiredColumns = ['Posted Date', 'Payee', 'Amount'];
+    const requiredColumns = BOA_CREDIT_EXPECTED_COLUMNS;
     const missingColumns = requiredColumns.filter((col) => !(col in firstRow));
 
     if (missingColumns.length > 0) {

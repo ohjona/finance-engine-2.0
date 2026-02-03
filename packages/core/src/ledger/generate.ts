@@ -109,7 +109,7 @@ export function generateJournalEntry(
     if (categoryAccount.warning) warnings.push(categoryAccount.warning);
 
     const sourceType = getAccountType(transaction.account_id);
-    const categoryType = getAccountType(transaction.category_id);
+    // const categoryType = getAccountType(transaction.category_id); // Unused
 
     const lines: JournalLine[] = [];
 
