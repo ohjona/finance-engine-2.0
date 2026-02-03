@@ -26,7 +26,7 @@ import type {
     CategorizationResult,
     CategorizationOutput,
 } from '../types/index.js';
-import type { CategorizeOptions, CategorizationStats, BankCategoryMap } from './types.js';
+import type { CategorizeOptions, CategorizationStats } from './types.js';
 
 /**
  * Categorize a single transaction using 4-layer rule hierarchy.

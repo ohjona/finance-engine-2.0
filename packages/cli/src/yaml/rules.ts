@@ -29,7 +29,7 @@ export async function appendRuleToYaml(
         (root as any).add(doc.createNode(rule));
     } else if (isMap(root)) {
         // Case 2: Top-level mapping
-        let rules = root.get('rules');
+        const rules = root.get('rules');
         if (!rules) {
             // Case 2a: No rules key, create it
             (root as any).set('rules', doc.createNode([rule]));

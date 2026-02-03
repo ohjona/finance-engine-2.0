@@ -33,7 +33,6 @@ export function parseDiscover(data: ArrayBuffer, accountId: number, sourceFile: 
 
     let activeSheet: XLSX.WorkSheet | null = null;
     let activeRows: Record<string, unknown>[] = [];
-    let activeSheetName: string = '';
 
     // X-2: Robust multi-table handling. Scan all sheets for required headers.
     for (const sheetName of workbook.SheetNames) {
@@ -46,7 +45,6 @@ export function parseDiscover(data: ArrayBuffer, accountId: number, sourceFile: 
         if (missingColumns.length === 0) {
             activeSheet = sheet;
             activeRows = rows;
-            activeSheetName = sheetName;
             break;
         }
     }
