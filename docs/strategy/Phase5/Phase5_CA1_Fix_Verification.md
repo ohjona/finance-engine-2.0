@@ -1,6 +1,6 @@
 # D.1 Chief Architect Verification Review — Phase 5 Fixes
 
-**PR:** https://github.com/ohjona/finance-engine-2.0/pull/5
+**PR:** https://github.com/ohjonathan/finance-engine-2.0/pull/5
 **Branch:** `phase-5/cli-implementation`
 **Commit:** `66f2d94` → patched
 **Reviewer:** Chief Architect (Claude Opus 4.5)

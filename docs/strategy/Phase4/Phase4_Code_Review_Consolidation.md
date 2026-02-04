@@ -1,6 +1,6 @@
 # D.3: Phase 4 Code Review Consolidation
 
-**PR:** https://github.com/ohjona/finance-engine-2.0/pull/4
+**PR:** https://github.com/ohjonathan/finance-engine-2.0/pull/4
 **Branch:** `phase-4/matcher-ledger`
 **Date:** 2026-02-01
 

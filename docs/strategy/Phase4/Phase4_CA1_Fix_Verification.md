@@ -5,7 +5,7 @@
 **Date:** 2026-02-01
 **Review Type:** Fix Verification (D.1.1)
 
-**PR:** https://github.com/ohjona/finance-engine-2.0/pull/4
+**PR:** https://github.com/ohjonathan/finance-engine-2.0/pull/4
 **Branch:** `phase-4/matcher-ledger`
 **Fix Commit:** `9726daf fix(core): add RECV keyword to payment patterns (CA-1)`
 

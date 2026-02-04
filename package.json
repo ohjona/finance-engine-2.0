@@ -9,12 +9,12 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/ohjona/finance-engine-2.0.git"
+        "url": "https://github.com/ohjonathan/finance-engine-2.0.git"
     },
     "bugs": {
-        "url": "https://github.com/ohjona/finance-engine-2.0/issues"
+        "url": "https://github.com/ohjonathan/finance-engine-2.0/issues"
     },
-    "homepage": "https://github.com/ohjona/finance-engine-2.0#readme",
+    "homepage": "https://github.com/ohjonathan/finance-engine-2.0#readme",
     "scripts": {
         "build": "pnpm -r build",
         "test": "pnpm -r test",

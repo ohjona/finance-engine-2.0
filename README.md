@@ -2,7 +2,7 @@
 
 **Personal finance automation for monthly bookkeeping**
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/ohjona/finance-engine-2.0)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/ohjonathan/finance-engine-2.0)
 [![Tests](https://img.shields.io/badge/tests-246%20passing-brightgreen.svg)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3+-blue.svg)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -12,7 +12,7 @@ Finance Engine automates monthly bank statement processing. Parse exports from m
 ## Quick Start
 
 ```bash
-git clone https://github.com/ohjona/finance-engine-2.0.git
+git clone https://github.com/ohjonathan/finance-engine-2.0.git
 cd finance-engine-2.0
 pnpm install && pnpm build
 

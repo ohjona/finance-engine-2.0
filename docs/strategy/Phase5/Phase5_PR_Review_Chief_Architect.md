@@ -1,6 +1,6 @@
 # D.1 Chief Architect PR Review — Phase 5
 
-**PR:** https://github.com/ohjona/finance-engine-2.0/pull/5
+**PR:** https://github.com/ohjonathan/finance-engine-2.0/pull/5
 **Branch:** `phase-5/cli-implementation`
 **Reviewer:** Chief Architect (Claude Opus 4.5)
 **Date:** 2026-02-02

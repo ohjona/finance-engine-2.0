@@ -5,7 +5,7 @@
 **Date:** 2026-02-02
 **Review Type:** Final Approval (D.6)
 
-**PR:** https://github.com/ohjona/finance-engine-2.0/pull/4
+**PR:** https://github.com/ohjonathan/finance-engine-2.0/pull/4
 **Branch:** `phase-4/matcher-ledger`
 
 ---
